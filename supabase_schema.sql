@@ -34,12 +34,35 @@ create table if not exists public.menus (
   updated_at timestamptz default now()
 );
 
--- 4. Enable RLS
+-- 4. Tabel orders
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  location_id uuid references public.locations(id),
+  kasir_id uuid references auth.users(id),
+  total integer not null default 0,
+  status text default 'completed' check (status in ('pending', 'completed', 'cancelled')),
+  created_at timestamptz default now()
+);
+
+-- 5. Tabel order_items
+create table if not exists public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid references public.orders(id) on delete cascade,
+  menu_id uuid references public.menus(id),
+  menu_name text not null,
+  price integer not null,
+  quantity integer not null default 1,
+  subtotal integer not null
+);
+
+-- 6. Enable RLS
 alter table public.profiles enable row level security;
 alter table public.locations enable row level security;
 alter table public.menus enable row level security;
+alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
 
--- Policies profiles (existing)
+-- Profiles policies
 create policy "Users can view own profile"
 on public.profiles for select
 to authenticated
@@ -71,7 +94,7 @@ on public.locations for select
 to authenticated
 using (true);
 
--- Menus: semua authenticated bisa baca, hanya owner yang bisa insert/update/delete
+-- Menus
 create policy "Menus are viewable by authenticated users"
 on public.menus for select
 to authenticated
@@ -106,6 +129,40 @@ using (
     where id = auth.uid() and role = 'owner'
   )
 );
+
+-- Orders: kasir bisa insert order di lokasi sendiri, owner bisa lihat semua
+create policy "Kasir can insert orders"
+on public.orders for insert
+to authenticated
+with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and (p.role = 'owner' or (p.role = 'kasir' and p.location_id = location_id))
+  )
+);
+
+create policy "Users can view own location orders"
+on public.orders for select
+to authenticated
+using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and (p.role = 'owner' or p.location_id = orders.location_id)
+  )
+);
+
+-- Order items
+create policy "Order items viewable by authenticated"
+on public.order_items for select
+to authenticated
+using (true);
+
+create policy "Kasir can insert order items"
+on public.order_items for insert
+to authenticated
+with check (true);
 
 -- Trigger profile
 create or replace function public.handle_new_user()
