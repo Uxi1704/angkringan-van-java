@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { jakartaInputNow, jakartaInputToIso, rupiah, stallPlace } from '@/lib/shop'
+import { jakartaInputNow, jakartaInputToIso, menuUnit, rupiah, stallPlace } from '@/lib/shop'
 
-type Menu = { id: string; name: string; price: number }
+type Menu = { id: string; name: string; price: number; unit?: string | null }
 type Location = { id: string; name: string }
 type Stock = { menu_id: string; location_id: string; quantity: number }
 
@@ -18,6 +18,7 @@ export default function KasirDashboard() {
   const [stocks, setStocks] = useState<Stock[]>([])
   const [locationId, setLocationId] = useState('')
   const [name, setName] = useState('')
+  const [note, setNote] = useState('')
   const [when, setWhen] = useState('')
   const [cart, setCart] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -39,11 +40,16 @@ export default function KasirDashboard() {
     }
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     setRole(profile?.role || '')
-    const [{ data: locs }, { data: menuData }, { data: stockData, error: stockError }] = await Promise.all([
+    const [{ data: locs }, menuResult, { data: stockData, error: stockError }] = await Promise.all([
       supabase.from('locations').select('id, name').order('name'),
-      supabase.from('menus').select('id, name, price').eq('is_active', true).order('name'),
+      supabase.from('menus').select('id, name, price, unit').eq('is_active', true).order('name'),
       supabase.from('stocks').select('menu_id, location_id, quantity'),
     ])
+    let menuData = menuResult.data as Menu[] | null
+    if (menuResult.error && /unit/i.test(menuResult.error.message)) {
+      const plain = await supabase.from('menus').select('id, name, price').eq('is_active', true).order('name')
+      menuData = plain.data
+    }
     const nextLocs = locs || []
     setLocations(nextLocs)
     setLocationId((current) => current || nextLocs[0]?.id || '')
@@ -59,6 +65,11 @@ export default function KasirDashboard() {
   )
   const total = lines.reduce((sum, line) => sum + line.qty * line.menu.price, 0)
   const count = lines.reduce((sum, line) => sum + line.qty, 0)
+  const countLabel = useMemo(() => {
+    const units = Array.from(new Set(lines.map((line) => menuUnit(line.menu.unit))))
+    if (units.length === 1) return `${count} ${units[0]}`
+    return `${count} item`
+  }, [lines, count])
 
   function leftOf(menuId: string) {
     return stocks.find((row) => row.menu_id === menuId && row.location_id === locationId)?.quantity ?? 0
@@ -93,12 +104,22 @@ export default function KasirDashboard() {
       return
     }
     setPending(true)
-    const { error: rpcError } = await supabase.rpc('place_order', {
+    const base = {
       p_location_id: locationId,
       p_customer_name: name.trim(),
       p_ordered_at: orderedAt,
       p_items: lines.map((line) => ({ menu_id: line.menu.id, quantity: line.qty })),
-    })
+    }
+    let { error: rpcError } = await supabase.rpc('place_order', { ...base, p_note: note.trim() || null })
+    if (rpcError && /schema cache|could not find the function|p_note/i.test(rpcError.message)) {
+      if (note.trim()) {
+        setPending(false)
+        setError('Catatan belum aktif. Jalankan supabase/003_unit_catatan.sql di SQL Editor Supabase, lalu catat lagi.')
+        return
+      }
+      const retry = await supabase.rpc('place_order', base)
+      rpcError = retry.error
+    }
     setPending(false)
     if (rpcError) {
       const missing = /place_order|schema cache/i.test(rpcError.message)
@@ -108,6 +129,7 @@ export default function KasirDashboard() {
       return
     }
     setName('')
+    setNote('')
     setCart({})
     setWhen(jakartaInputNow())
     setNotice('Pesanan tercatat. Stok lapak ini sudah berkurang.')
@@ -163,6 +185,17 @@ export default function KasirDashboard() {
           Tanggal dan jam (WIB)
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="mt-1 h-12 w-full rounded-lg border bg-white px-3" />
         </label>
+        <label className="block text-sm">
+          Catatan (opsional)
+          <textarea
+            value={note}
+            maxLength={300}
+            rows={2}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Misalnya pedas, tanpa sambal"
+            className="mt-1 w-full rounded-lg border bg-white px-3 py-2"
+          />
+        </label>
       </div>
 
       {notice ? <p className="mb-3 rounded-lg bg-white px-3 py-2 text-sm text-primary">{notice}</p> : null}
@@ -172,12 +205,13 @@ export default function KasirDashboard() {
         {menus.map((menu) => {
           const qty = cart[menu.id] || 0
           const left = leftOf(menu.id)
+          const unit = menuUnit(menu.unit)
           return (
             <li key={menu.id} className={'flex items-center gap-3 rounded-xl bg-white p-3 ' + (qty > 0 ? 'ring-2 ring-primary' : '')}>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{menu.name}</p>
-                <p className="text-sm text-stone-600">{rupiah(menu.price)}</p>
-                <p className={'text-xs ' + (left <= 5 ? 'text-sogan' : 'text-stone-500')}>{left <= 0 ? 'Habis' : `Sisa ${left} tusuk`}</p>
+                <p className="text-sm text-stone-600">{rupiah(menu.price)} / {unit}</p>
+                <p className={'text-xs ' + (left <= 5 ? 'text-sogan' : 'text-stone-500')}>{left <= 0 ? 'Habis' : `Sisa ${left} ${unit}`}</p>
               </div>
               <button type="button" disabled={qty === 0} onClick={() => setQty(menu.id, qty - 1)} className="h-11 w-11 rounded-lg border disabled:opacity-40">−</button>
               <span className="w-6 text-center font-medium">{qty}</span>
@@ -185,13 +219,13 @@ export default function KasirDashboard() {
             </li>
           )
         })}
-        {menus.length === 0 ? <li className="rounded-xl bg-white p-4 text-sm">Belum ada menu. Owner bisa menambah di halaman Menu, atau jalankan SQL stok.</li> : null}
+        {menus.length === 0 ? <li className="rounded-xl bg-white p-4 text-sm">Belum ada menu. Owner bisa menambah di halaman Menu.</li> : null}
       </ul>
 
       <div className="fixed inset-x-0 bottom-0 border-t bg-white px-4 py-3">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs text-stone-500">{count} tusuk · {stallPlace(locations.find((item) => item.id === locationId)?.name || '')}</p>
+            <p className="truncate text-xs text-stone-500">{countLabel} · {stallPlace(locations.find((item) => item.id === locationId)?.name || '')}</p>
             <p className="text-xl font-semibold">{rupiah(total)}</p>
           </div>
           <button type="button" disabled={pending || lines.length === 0} onClick={checkout} className="h-12 rounded-lg bg-primary px-4 font-medium text-white disabled:opacity-50">
