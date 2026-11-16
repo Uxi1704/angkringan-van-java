@@ -13,6 +13,11 @@ export function rupiah(value: number) {
   return "Rp " + value.toLocaleString("id-ID");
 }
 
+export function menuUnit(unit?: string | null) {
+  const value = (unit || "").trim();
+  return value || "tusuk";
+}
+
 export function stallPlace(name: string) {
   return /2/.test(name) ? "Simpang Sebabi" : "Simpang Bangkal";
 }
