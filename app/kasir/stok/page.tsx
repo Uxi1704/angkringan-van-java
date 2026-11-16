@@ -1,143 +1,122 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { stallPlace } from '@/lib/shop'
 
-type Stock = {
-  id: string
-  menu_id: string
-  location_id: string
-  quantity: number
-  menus: { name: string; price: number } | null
-}
+type Location = { id: string; name: string }
+type Menu = { id: string; name: string }
+type Stock = { id: string; menu_id: string; location_id: string; quantity: number }
 
 export default function StokPage() {
-  const [stocks, setStocks] = useState<Stock[]>([])
-  const [menus, setMenus] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [profile, setProfile] = useState<any>(null)
-  const [selectedMenu, setSelectedMenu] = useState('')
-  const [quantity, setQuantity] = useState('')
   const supabase = createClient()
   const router = useRouter()
+  const [locations, setLocations] = useState<Location[]>([])
+  const [locationId, setLocationId] = useState('')
+  const [menus, setMenus] = useState<Menu[]>([])
+  const [stocks, setStocks] = useState<Stock[]>([])
+  const [steps, setSteps] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  useEffect(() => { load() }, [])
 
-  async function loadData() {
+  async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       router.push('/login')
       return
     }
-
-    const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-    setProfile(prof)
-
-    if (!prof?.location_id) {
-      setLoading(false)
-      return
-    }
-
-    const { data: stockData } = await supabase
-      .from('stocks')
-      .select('*, menus(name, price)')
-      .eq('location_id', prof.location_id)
-
-    const { data: menuData } = await supabase
-      .from('menus')
-      .select('*')
-      .eq('is_active', true)
-
-    if (stockData) setStocks(stockData)
-    if (menuData) setMenus(menuData)
+    const [{ data: locs }, { data: menuData }, { data: stockData, error: stockError }] = await Promise.all([
+      supabase.from('locations').select('id, name').order('name'),
+      supabase.from('menus').select('id, name').eq('is_active', true).order('name'),
+      supabase.from('stocks').select('id, menu_id, location_id, quantity'),
+    ])
+    const nextLocs = locs || []
+    setLocations(nextLocs)
+    setLocationId((current) => current || nextLocs[0]?.id || '')
+    setMenus(menuData || [])
+    setStocks(stockData || [])
+    if (stockError) setError('Tabel stok belum ada. Jalankan supabase/002_operational.sql di SQL Editor Supabase.')
     setLoading(false)
   }
 
-  async function handleUpdate(e: React.FormEvent) {
-    e.preventDefault()
-    if (!selectedMenu || !quantity || !profile?.location_id) return
-
-    const existing = stocks.find((s) => s.menu_id === selectedMenu)
-
-    if (existing) {
-      await supabase
-        .from('stocks')
-        .update({ quantity: parseInt(quantity) })
-        .eq('id', existing.id)
-    } else {
-      await supabase.from('stocks').insert({
-        menu_id: selectedMenu,
-        location_id: profile.location_id,
-        quantity: parseInt(quantity),
+  async function adjust(menuId: string, delta: number) {
+    if (!locationId || delta === 0) return
+    setError('')
+    setPending(true)
+    const existing = stocks.find((row) => row.menu_id === menuId && row.location_id === locationId)
+    if (!existing) {
+      const { error: insertError } = await supabase.from('stocks').insert({
+        menu_id: menuId,
+        location_id: locationId,
+        quantity: Math.max(0, delta),
       })
+      setPending(false)
+      if (insertError) setError(insertError.message)
+      else await load()
+      return
     }
-
-    setSelectedMenu('')
-    setQuantity('')
-    loadData()
+    const next = existing.quantity + delta
+    if (next < 0) {
+      setPending(false)
+      setError('Stok tidak boleh minus.')
+      return
+    }
+    const { error: updateError } = await supabase.from('stocks').update({ quantity: next }).eq('id', existing.id)
+    setPending(false)
+    if (updateError) setError(updateError.message)
+    else await load()
   }
 
-  if (loading) return <div className="p-6">Loading...</div>
-
-  if (!profile?.location_id) {
-    return (
-      <div className="p-6">
-        <p className="text-red-600">Kasir ini belum punya lokasi. Hubungi owner.</p>
-        <button onClick={() => router.push('/kasir/dashboard')} className="mt-4 text-blue-600">
-          ← Kembali
-        </button>
-      </div>
-    )
-  }
+  if (loading) return <div className="p-6">Memuat...</div>
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Update Stok</h1>
-        <button onClick={() => router.push('/kasir/dashboard')} className="text-blue-600 text-sm">
-          ← Kasir
-        </button>
+    <div className="mx-auto max-w-lg px-4 py-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Stok tusuk</h1>
+        <button onClick={() => router.push('/kasir/dashboard')} className="text-sm text-primary">← Kasir</button>
       </div>
-
-      <form onSubmit={handleUpdate} className="bg-white p-4 rounded-lg shadow mb-4 space-y-3">
-        <select
-          value={selectedMenu}
-          onChange={(e) => setSelectedMenu(e.target.value)}
-          className="w-full border rounded px-3 py-2"
-          required
-        >
-          <option value="">Pilih menu</option>
-          {menus.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-        <input
-          type="number"
-          placeholder="Jumlah stok"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          className="w-full border rounded px-3 py-2"
-          required
-        />
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
-          Update Stok
-        </button>
-      </form>
-
-      <div className="space-y-2">
-        {stocks.map((stock) => (
-          <div key={stock.id} className="bg-white p-3 rounded-lg shadow flex justify-between">
-            <span>{stock.menus?.name || 'Menu'}</span>
-            <span className="font-medium">{stock.quantity}</span>
-          </div>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        {locations.map((location) => (
+          <button
+            key={location.id}
+            type="button"
+            onClick={() => setLocationId(location.id)}
+            className={'rounded-xl px-3 py-3 text-left ' + (location.id === locationId ? 'bg-primary text-white' : 'bg-white')}
+          >
+            <span className="block text-xs opacity-80">{location.name}</span>
+            <span className="font-semibold">{stallPlace(location.name)}</span>
+          </button>
         ))}
-        {stocks.length === 0 && <p className="text-gray-500 text-center">Belum ada data stok</p>}
       </div>
+      {error ? <p className="mb-3 text-sm text-sogan">{error}</p> : null}
+      <ul className="space-y-2">
+        {menus.map((menu) => {
+          const qty = stocks.find((row) => row.menu_id === menu.id && row.location_id === locationId)?.quantity ?? 0
+          const step = Number(steps[menu.id] || '1') || 1
+          return (
+            <li key={menu.id} className="rounded-xl bg-white p-3">
+              <div className="flex items-baseline justify-between">
+                <p className="font-semibold">{menu.name}</p>
+                <p className={qty <= 5 ? 'text-sogan' : ''}>{qty} tusuk</p>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <button type="button" disabled={pending} onClick={() => adjust(menu.id, -step)} className="h-11 flex-1 rounded-lg border text-sm">Kurangi</button>
+                <input
+                  value={steps[menu.id] || '1'}
+                  inputMode="numeric"
+                  onChange={(e) => setSteps((current) => ({ ...current, [menu.id]: e.target.value.replace(/\D/g, '').slice(0, 3) }))}
+                  className="h-11 w-16 rounded-lg border text-center"
+                />
+                <button type="button" disabled={pending} onClick={() => adjust(menu.id, step)} className="h-11 flex-1 rounded-lg bg-primary text-sm text-white">Tambah</button>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

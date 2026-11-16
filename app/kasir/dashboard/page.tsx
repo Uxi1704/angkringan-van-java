@@ -1,173 +1,204 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { jakartaInputNow, jakartaInputToIso, rupiah, stallPlace } from '@/lib/shop'
 
-type Menu = {
-  id: string
-  name: string
-  price: number
-  category: string | null
-}
-
-type CartItem = {
-  menu: Menu
-  quantity: number
-}
+type Menu = { id: string; name: string; price: number }
+type Location = { id: string; name: string }
+type Stock = { menu_id: string; location_id: string; quantity: number }
 
 export default function KasirDashboard() {
-  const [menus, setMenus] = useState<Menu[]>([])
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [profile, setProfile] = useState<any>(null)
   const supabase = createClient()
   const router = useRouter()
+  const [menus, setMenus] = useState<Menu[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
+  const [stocks, setStocks] = useState<Stock[]>([])
+  const [locationId, setLocationId] = useState('')
+  const [name, setName] = useState('')
+  const [when, setWhen] = useState('')
+  const [cart, setCart] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [role, setRole] = useState('')
 
   useEffect(() => {
-    loadData()
+    setWhen(jakartaInputNow())
+    load()
   }, [])
 
-  async function loadData() {
+  async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       router.push('/login')
       return
     }
-
-    const { data: prof } = await supabase.from('profiles').select('*, locations(name)').eq('id', user.id).single()
-    setProfile(prof)
-
-    const { data: menuData } = await supabase
-      .from('menus')
-      .select('*')
-      .eq('is_active', true)
-      .order('name')
-
-    if (menuData) setMenus(menuData)
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    setRole(profile?.role || '')
+    const [{ data: locs }, { data: menuData }, { data: stockData, error: stockError }] = await Promise.all([
+      supabase.from('locations').select('id, name').order('name'),
+      supabase.from('menus').select('id, name, price').eq('is_active', true).order('name'),
+      supabase.from('stocks').select('menu_id, location_id, quantity'),
+    ])
+    const nextLocs = locs || []
+    setLocations(nextLocs)
+    setLocationId((current) => current || nextLocs[0]?.id || '')
+    setMenus(menuData || [])
+    setStocks(stockData || [])
+    if (stockError) setError('Stok belum aktif. Jalankan supabase/002_operational.sql di SQL Editor Supabase.')
     setLoading(false)
   }
 
-  function addToCart(menu: Menu) {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.menu.id === menu.id)
-      if (existing) {
-        return prev.map((item) =>
-          item.menu.id === menu.id ? { ...item, quantity: item.quantity + 1 } : item
-        )
-      }
-      return [...prev, { menu, quantity: 1 }]
+  const lines = useMemo(
+    () => menus.map((menu) => ({ menu, qty: cart[menu.id] || 0 })).filter((line) => line.qty > 0),
+    [menus, cart],
+  )
+  const total = lines.reduce((sum, line) => sum + line.qty * line.menu.price, 0)
+  const count = lines.reduce((sum, line) => sum + line.qty, 0)
+
+  function leftOf(menuId: string) {
+    return stocks.find((row) => row.menu_id === menuId && row.location_id === locationId)?.quantity ?? 0
+  }
+
+  function setQty(menuId: string, next: number) {
+    const cap = leftOf(menuId)
+    setCart((current) => {
+      const copy = { ...current }
+      if (next <= 0) delete copy[menuId]
+      else copy[menuId] = Math.min(cap, next)
+      return copy
     })
   }
 
-  function updateQuantity(menuId: string, delta: number) {
-    setCart((prev) =>
-      prev
-        .map((item) =>
-          item.menu.id === menuId ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
-        )
-        .filter((item) => item.quantity > 0)
-    )
-  }
-
-  const total = cart.reduce((sum, item) => sum + item.menu.price * item.quantity, 0)
-
-  async function handleCheckout() {
-    if (cart.length === 0 || !profile?.location_id) {
-      alert('Lokasi kasir belum diatur')
+  async function checkout() {
+    setError('')
+    setNotice('')
+    if (!name.trim()) {
+      setError('Isi nama pelanggan dulu.')
       return
     }
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        location_id: profile.location_id,
-        kasir_id: user.id,
-        total,
-        status: 'completed',
-      })
-      .select()
-      .single()
-
-    if (orderError || !order) {
-      alert('Gagal buat order: ' + (orderError?.message || ''))
+    if (!locationId || lines.length === 0) {
+      setError('Pilih lapak dan minimal satu menu.')
       return
     }
-
-    const items = cart.map((item) => ({
-      order_id: order.id,
-      menu_id: item.menu.id,
-      menu_name: item.menu.name,
-      price: item.menu.price,
-      quantity: item.quantity,
-      subtotal: item.menu.price * item.quantity,
-    }))
-
-    await supabase.from('order_items').insert(items)
-
-    setCart([])
-    alert('Order berhasil!')
+    let orderedAt = ''
+    try {
+      orderedAt = jakartaInputToIso(when)
+    } catch {
+      setError('Tanggal dan jam tidak valid.')
+      return
+    }
+    setPending(true)
+    const { error: rpcError } = await supabase.rpc('place_order', {
+      p_location_id: locationId,
+      p_customer_name: name.trim(),
+      p_ordered_at: orderedAt,
+      p_items: lines.map((line) => ({ menu_id: line.menu.id, quantity: line.qty })),
+    })
+    setPending(false)
+    if (rpcError) {
+      const missing = /place_order|schema cache/i.test(rpcError.message)
+      setError(missing
+        ? 'Database belum siap. Jalankan file supabase/002_operational.sql di SQL Editor Supabase, lalu coba lagi.'
+        : rpcError.message)
+      return
+    }
+    setName('')
+    setCart({})
+    setWhen(jakartaInputNow())
+    setNotice('Pesanan tercatat. Stok lapak ini sudah berkurang.')
+    await load()
   }
 
-  if (loading) return <div className="p-6">Loading...</div>
+  async function logout() {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
+  if (loading) return <div className="p-6">Memuat...</div>
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
+    <div className="mx-auto min-h-screen max-w-lg px-4 pb-36 pt-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Kasir</h1>
-          <p className="text-sm text-gray-600">{profile?.locations?.name || 'Lokasi belum diatur'}</p>
+          <p className="text-xs font-medium text-primary">Angkringan Van Java</p>
+          <h1 className="text-2xl font-bold">Catat pesanan</h1>
         </div>
-        <Link href="/kasir/stok" className="text-blue-600 text-sm">
-          Update Stok
-        </Link>
+        <button onClick={logout} className="text-sm text-sogan">Keluar</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-6">
-        {menus.map((menu) => (
-          <button
-            key={menu.id}
-            onClick={() => addToCart(menu)}
-            className="bg-white p-3 rounded-lg shadow text-left active:bg-gray-50"
-          >
-            <div className="font-medium text-sm">{menu.name}</div>
-            <div className="text-green-600 text-sm">Rp {menu.price.toLocaleString()}</div>
-          </button>
-        ))}
+      <div className="mb-4 flex gap-2 text-sm">
+        <Link href="/kasir/stok" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Stok</Link>
+        {role === 'owner' ? <Link href="/owner/dashboard" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Pantau</Link> : null}
       </div>
 
-      {cart.length > 0 && (
-        <div className="bg-white p-4 rounded-lg shadow fixed bottom-4 left-4 right-4 max-w-2xl mx-auto">
-          <h2 className="font-semibold mb-2">Pesanan</h2>
-          <div className="space-y-2 max-h-40 overflow-y-auto mb-3">
-            {cart.map((item) => (
-              <div key={item.menu.id} className="flex justify-between items-center text-sm">
-                <span>{item.menu.name}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => updateQuantity(item.menu.id, -1)} className="w-6 h-6 bg-gray-200 rounded">
-                    -
-                  </button>
-                  <span>{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.menu.id, 1)} className="w-6 h-6 bg-gray-200 rounded">
-                    +
-                  </button>
-                  <span className="w-16 text-right">Rp {(item.menu.price * item.quantity).toLocaleString()}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between items-center font-bold border-t pt-2">
-            <span>Total: Rp {total.toLocaleString()}</span>
-            <button onClick={handleCheckout} className="bg-green-600 text-white px-4 py-2 rounded-lg">
-              Bayar
+      <p className="mb-2 text-sm font-medium">Lapak</p>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        {locations.map((location) => {
+          const active = location.id === locationId
+          return (
+            <button
+              key={location.id}
+              type="button"
+              onClick={() => { setLocationId(location.id); setCart({}) }}
+              className={'rounded-xl px-3 py-3 text-left ' + (active ? 'bg-primary text-white' : 'bg-white')}
+            >
+              <span className="block text-xs opacity-80">{location.name}</span>
+              <span className="text-lg font-semibold">{stallPlace(location.name)}</span>
             </button>
+          )
+        })}
+      </div>
+
+      <div className="mb-4 grid gap-3">
+        <label className="block text-sm">
+          Nama pelanggan
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Misalnya Mas Budi" className="mt-1 h-12 w-full rounded-lg border bg-white px-3" />
+        </label>
+        <label className="block text-sm">
+          Tanggal dan jam (WIB)
+          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="mt-1 h-12 w-full rounded-lg border bg-white px-3" />
+        </label>
+      </div>
+
+      {notice ? <p className="mb-3 rounded-lg bg-white px-3 py-2 text-sm text-primary">{notice}</p> : null}
+      {error ? <p className="mb-3 rounded-lg bg-white px-3 py-2 text-sm text-sogan">{error}</p> : null}
+
+      <ul className="space-y-2">
+        {menus.map((menu) => {
+          const qty = cart[menu.id] || 0
+          const left = leftOf(menu.id)
+          return (
+            <li key={menu.id} className={'flex items-center gap-3 rounded-xl bg-white p-3 ' + (qty > 0 ? 'ring-2 ring-primary' : '')}>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{menu.name}</p>
+                <p className="text-sm text-stone-600">{rupiah(menu.price)}</p>
+                <p className={'text-xs ' + (left <= 5 ? 'text-sogan' : 'text-stone-500')}>{left <= 0 ? 'Habis' : `Sisa ${left} tusuk`}</p>
+              </div>
+              <button type="button" disabled={qty === 0} onClick={() => setQty(menu.id, qty - 1)} className="h-11 w-11 rounded-lg border disabled:opacity-40">−</button>
+              <span className="w-6 text-center font-medium">{qty}</span>
+              <button type="button" disabled={left <= 0 || qty >= left} onClick={() => setQty(menu.id, qty + 1)} className="h-11 w-11 rounded-lg bg-primary text-white disabled:opacity-40">+</button>
+            </li>
+          )
+        })}
+        {menus.length === 0 ? <li className="rounded-xl bg-white p-4 text-sm">Belum ada menu. Owner bisa menambah di halaman Menu, atau jalankan SQL stok.</li> : null}
+      </ul>
+
+      <div className="fixed inset-x-0 bottom-0 border-t bg-white px-4 py-3">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs text-stone-500">{count} tusuk · {stallPlace(locations.find((item) => item.id === locationId)?.name || '')}</p>
+            <p className="text-xl font-semibold">{rupiah(total)}</p>
           </div>
+          <button type="button" disabled={pending || lines.length === 0} onClick={checkout} className="h-12 rounded-lg bg-primary px-4 font-medium text-white disabled:opacity-50">
+            {pending ? 'Menyimpan...' : 'Catat pesanan'}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   )
 }
