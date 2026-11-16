@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 type Menu = {
   id: string
@@ -35,7 +36,7 @@ export default function KasirDashboard() {
       return
     }
 
-    const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+    const { data: prof } = await supabase.from('profiles').select('*, locations(name)').eq('id', user.id).single()
     setProfile(prof)
 
     const { data: menuData } = await supabase
@@ -73,7 +74,10 @@ export default function KasirDashboard() {
   const total = cart.reduce((sum, item) => sum + item.menu.price * item.quantity, 0)
 
   async function handleCheckout() {
-    if (cart.length === 0 || !profile?.location_id) return
+    if (cart.length === 0 || !profile?.location_id) {
+      alert('Lokasi kasir belum diatur')
+      return
+    }
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -90,7 +94,7 @@ export default function KasirDashboard() {
       .single()
 
     if (orderError || !order) {
-      alert('Gagal buat order')
+      alert('Gagal buat order: ' + (orderError?.message || ''))
       return
     }
 
@@ -113,7 +117,15 @@ export default function KasirDashboard() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Kasir - {profile?.full_name || 'Kasir'}</h1>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h1 className="text-2xl font-bold">Kasir</h1>
+          <p className="text-sm text-gray-600">{profile?.locations?.name || 'Lokasi belum diatur'}</p>
+        </div>
+        <Link href="/kasir/stok" className="text-blue-600 text-sm">
+          Update Stok
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 gap-2 mb-6">
         {menus.map((menu) => (
