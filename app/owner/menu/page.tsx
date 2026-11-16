@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { STARTER_MENUS, rupiah } from '@/lib/shop'
+import { STARTER_MENUS, menuUnit, rupiah } from '@/lib/shop'
 
 type Menu = {
   id: string
@@ -11,13 +11,17 @@ type Menu = {
   price: number
   category: string | null
   is_active: boolean
+  unit?: string | null
 }
+
+const unitIdeas = ['tusuk', 'gelas', 'porsi', 'bungkus', 'pcs']
 
 export default function MenuPage() {
   const [menus, setMenus] = useState<Menu[]>([])
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
+  const [unit, setUnit] = useState('tusuk')
   const [category, setCategory] = useState('')
   const [editing, setEditing] = useState<Menu | null>(null)
   const [error, setError] = useState('')
@@ -38,6 +42,13 @@ export default function MenuPage() {
     setLoading(false)
   }
 
+  function explain(message: string) {
+    if (/unit/i.test(message)) {
+      return 'Satuan belum aktif. Jalankan supabase/003_unit_catatan.sql di SQL Editor Supabase.'
+    }
+    return message
+  }
+
   async function seed() {
     setError('')
     const existing = new Set(menus.map((menu) => menu.name.toLowerCase()))
@@ -47,27 +58,38 @@ export default function MenuPage() {
       name: menu.name,
       price: menu.price,
       category: 'gorengan',
+      unit: 'tusuk',
     })))
-    if (insertError) setError(insertError.message)
+    if (insertError) setError(explain(insertError.message))
     else await loadMenus()
+  }
+
+  function resetForm() {
+    setEditing(null)
+    setName('')
+    setPrice('')
+    setUnit('tusuk')
+    setCategory('')
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name || !price) return
+    if (!name || !price || !unit.trim()) return
     setError('')
-    const payload = { name, price: parseInt(price, 10), category: category || null }
+    const payload = {
+      name,
+      price: parseInt(price, 10),
+      category: category || null,
+      unit: unit.trim().slice(0, 20),
+    }
     const result = editing
       ? await supabase.from('menus').update(payload).eq('id', editing.id)
       : await supabase.from('menus').insert(payload)
     if (result.error) {
-      setError(result.error.message)
+      setError(explain(result.error.message))
       return
     }
-    setEditing(null)
-    setName('')
-    setPrice('')
-    setCategory('')
+    resetForm()
     await loadMenus()
   }
 
@@ -82,6 +104,7 @@ export default function MenuPage() {
     setEditing(menu)
     setName(menu.name)
     setPrice(menu.price.toString())
+    setUnit(menuUnit(menu.unit))
     setCategory(menu.category || '')
   }
 
@@ -101,11 +124,27 @@ export default function MenuPage() {
         <h2 className="font-semibold">{editing ? 'Edit menu' : 'Tambah menu'}</h2>
         <input type="text" placeholder="Nama menu" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border px-3 py-2" required />
         <input type="number" placeholder="Harga" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full rounded border px-3 py-2" required />
+        <div>
+          <p className="mb-2 text-sm">Satuan</p>
+          <div className="mb-2 flex flex-wrap gap-2">
+            {unitIdeas.map((idea) => (
+              <button
+                key={idea}
+                type="button"
+                onClick={() => setUnit(idea)}
+                className={'rounded-full px-3 py-1 text-sm ' + (unit === idea ? 'bg-primary text-white' : 'bg-paper')}
+              >
+                {idea}
+              </button>
+            ))}
+          </div>
+          <input type="text" placeholder="Atau ketik satuan lain" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full rounded border px-3 py-2" required />
+        </div>
         <input type="text" placeholder="Kategori (opsional)" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded border px-3 py-2" />
         <div className="flex gap-2">
           <button type="submit" className="rounded bg-primary px-4 py-2 text-white">{editing ? 'Update' : 'Tambah'}</button>
           {editing ? (
-            <button type="button" onClick={() => { setEditing(null); setName(''); setPrice(''); setCategory('') }} className="rounded border px-4 py-2">Batal</button>
+            <button type="button" onClick={resetForm} className="rounded border px-4 py-2">Batal</button>
           ) : null}
         </div>
       </form>
@@ -114,7 +153,7 @@ export default function MenuPage() {
           <div key={menu.id} className="flex items-center justify-between rounded-xl bg-white p-4">
             <div>
               <div className="font-medium">{menu.name}</div>
-              <div className="text-sm text-stone-600">{rupiah(menu.price)} {menu.category ? `· ${menu.category}` : ''}</div>
+              <div className="text-sm text-stone-600">{rupiah(menu.price)} · {menuUnit(menu.unit)}{menu.category ? ` · ${menu.category}` : ''}</div>
             </div>
             <div className="flex gap-3 text-sm">
               <button onClick={() => startEdit(menu)} className="text-primary">Edit</button>
