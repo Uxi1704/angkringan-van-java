@@ -116,10 +116,11 @@ export default function OwnerDashboard() {
     <div className="mx-auto max-w-lg px-4 py-5">
       <p className="text-xs font-medium text-primary">Pemilik</p>
       <h1 className="mb-4 text-2xl font-bold">Pantauan penjualan</h1>
-      <div className="mb-4 grid grid-cols-3 gap-2 text-sm">
+      <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
         <Link href="/owner/menu" className="rounded-xl bg-white p-3 font-medium">Menu</Link>
         <Link href="/kasir/stok" className="rounded-xl bg-white p-3 font-medium">Stok</Link>
         <Link href="/kasir/dashboard" className="rounded-xl bg-white p-3 font-medium">Kasir</Link>
+        <Link href="/owner/tim" className="rounded-xl bg-white p-3 font-medium">Akun kasir</Link>
       </div>
       <div className="mb-2 flex gap-2 overflow-x-auto">
         {ranges.map((item) => (
