@@ -115,7 +115,10 @@ export default function OwnerDashboard() {
   return (
     <div className="mx-auto max-w-lg px-4 py-5">
       <p className="text-xs font-medium text-primary">Pemilik</p>
-      <h1 className="mb-4 text-2xl font-bold">Pantauan penjualan</h1>
+      <h1 className="mb-3 text-2xl font-bold">Pantauan penjualan</h1>
+      <Link href="/owner/tim" className="mb-4 flex h-14 items-center justify-center rounded-xl bg-primary text-base font-semibold text-white">
+        Tambah akun kasir
+      </Link>
       <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
         <Link href="/owner/menu" className="rounded-xl bg-white p-3 font-medium">Menu</Link>
         <Link href="/kasir/stok" className="rounded-xl bg-white p-3 font-medium">Stok</Link>
