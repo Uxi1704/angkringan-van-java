@@ -26,6 +26,7 @@ export default function KasirDashboard() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [role, setRole] = useState('')
+  const [cashierName, setCashierName] = useState('Kasir')
 
   useEffect(() => {
     setWhen(jakartaInputNow())
@@ -38,8 +39,15 @@ export default function KasirDashboard() {
       router.push('/login')
       return
     }
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const named = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
+    let profile = named.data as { role?: string; full_name?: string | null } | null
+    if (named.error && /full_name/i.test(named.error.message)) {
+      const plain = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      profile = plain.data
+    }
     setRole(profile?.role || '')
+    const fromEmail = (user.email || '').split('@')[0]
+    setCashierName((profile?.full_name || '').trim() || fromEmail || 'Kasir')
     const [{ data: locs }, menuResult, { data: stockData, error: stockError }] = await Promise.all([
       supabase.from('locations').select('id, name').order('name'),
       supabase.from('menus').select('id, name, price, unit').eq('is_active', true).order('name'),
@@ -132,7 +140,7 @@ export default function KasirDashboard() {
     setNote('')
     setCart({})
     setWhen(jakartaInputNow())
-    setNotice('Pesanan tercatat. Stok lapak ini sudah berkurang.')
+    setNotice(`Pesanan tercatat oleh ${cashierName}. Stok lapak ini sudah berkurang.`)
     await load()
   }
 
@@ -149,6 +157,7 @@ export default function KasirDashboard() {
         <div>
           <p className="text-xs font-medium text-primary">Angkringan Van Java</p>
           <h1 className="text-2xl font-bold">Catat pesanan</h1>
+          <p className="text-xs text-stone-500">Kasir: {cashierName}</p>
         </div>
         <button onClick={logout} className="text-sm text-sogan">Keluar</button>
       </div>
