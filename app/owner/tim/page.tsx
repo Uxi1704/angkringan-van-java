@@ -12,8 +12,11 @@ type Staff = {
 }
 
 function explain(message: string) {
+  if (/full_name/i.test(message)) {
+    return 'Kolom nama belum ada. Jalankan supabase/005_nama_struk.sql di SQL Editor Supabase, lalu muat ulang.'
+  }
   if (/list_staff|create_kasir|rename_kasir|reset_kasir_password|schema cache|could not find the function/i.test(message)) {
-    return 'Pengaturan akun belum aktif. Jalankan supabase/004_akun_kasir.sql di SQL Editor Supabase, lalu muat ulang.'
+    return 'Pengaturan akun belum aktif. Jalankan supabase/004_akun_kasir.sql lalu supabase/005_nama_struk.sql di SQL Editor Supabase, lalu muat ulang.'
   }
   return message
 }
