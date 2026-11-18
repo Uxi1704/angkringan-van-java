@@ -12,3 +12,6 @@ Itu menambah satuan menu (tusuk, gelas, porsi, dan lain-lain) serta kolom catata
 
 Lalu jalankan `supabase/004_akun_kasir.sql`.
 Sesudah itu owner bisa menambah kasir dan reset password dari halaman Akun kasir.
+
+Lalu jalankan `supabase/005_nama_struk.sql`.
+Itu menambah nama kasir dan menulis nama itu di setiap nota.
