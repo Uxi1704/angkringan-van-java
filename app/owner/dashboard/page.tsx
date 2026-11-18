@@ -15,6 +15,7 @@ type Order = {
   ordered_at: string | null
   customer_name: string | null
   note: string | null
+  kasir_name: string | null
   location_id: string
   locations: { name: string } | null
 }
@@ -63,25 +64,35 @@ export default function OwnerDashboard() {
     const locQuery = supabase.from('locations').select('id, name').order('name')
     const orderQuery = supabase
       .from('orders')
-      .select('id, total, status, created_at, ordered_at, customer_name, note, location_id, locations(name)')
+      .select('id, total, status, created_at, ordered_at, customer_name, note, kasir_name, location_id, locations(name)')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
     const [locRes, orderRes] = await Promise.all([locQuery, orderQuery])
     let rows = orderRes.data as any[] | null
     let queryError = orderRes.error
-    if (queryError && /note/i.test(queryError.message)) {
+    if (queryError && /kasir_name|note/i.test(queryError.message)) {
       const fallback = await supabase
         .from('orders')
-        .select('id, total, status, created_at, ordered_at, customer_name, location_id, locations(name)')
+        .select('id, total, status, created_at, ordered_at, customer_name, note, location_id, locations(name)')
         .gte('created_at', since)
         .order('created_at', { ascending: false })
       rows = fallback.data as any[] | null
       queryError = fallback.error
+      if (queryError && /note/i.test(queryError.message)) {
+        const plain = await supabase
+          .from('orders')
+          .select('id, total, status, created_at, ordered_at, customer_name, location_id, locations(name)')
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+        rows = plain.data as any[] | null
+        queryError = plain.error
+      }
     }
     if (queryError) setError(queryError.message)
     const normalized = ((rows || []) as any[]).map((row) => ({
       ...row,
       note: row.note ?? null,
+      kasir_name: row.kasir_name ?? null,
       locations: Array.isArray(row.locations) ? row.locations[0] || null : row.locations,
     }))
     setLocations(locRes.data || [])
@@ -185,6 +196,7 @@ export default function OwnerDashboard() {
                 <span className="min-w-0">
                   <span className="font-medium">{order.customer_name || 'Tanpa nama'}</span>
                   <span className="block text-xs text-stone-500">{stallPlace(order.locations?.name || '')} · {formatWib(order.ordered_at || order.created_at)}</span>
+                  {order.kasir_name ? <span className="block text-xs text-stone-600">Kasir: {order.kasir_name}</span> : null}
                   {order.note ? <span className="mt-1 block text-xs text-stone-600">Catatan: {order.note}</span> : null}
                 </span>
                 <span className="shrink-0">{rupiah(order.total)}</span>
