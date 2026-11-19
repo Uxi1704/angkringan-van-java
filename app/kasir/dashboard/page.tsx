@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { jakartaInputNow, jakartaInputToIso, menuUnit, rupiah, stallPlace } from '@/lib/shop'
+import { formatWib, jakartaInputNow, jakartaInputToIso, menuUnit, rupiah, stallPlace } from '@/lib/shop'
+import { Struk, type StrukData } from '@/app/components/Struk'
 
 type Menu = { id: string; name: string; price: number; unit?: string | null }
 type Location = { id: string; name: string }
@@ -27,11 +28,18 @@ export default function KasirDashboard() {
   const [notice, setNotice] = useState('')
   const [role, setRole] = useState('')
   const [cashierName, setCashierName] = useState('Kasir')
+  const [receipt, setReceipt] = useState<StrukData | null>(null)
 
   useEffect(() => {
     setWhen(jakartaInputNow())
     load()
   }, [])
+
+  useEffect(() => {
+    if (!receipt) return
+    const timer = window.setTimeout(() => window.print(), 400)
+    return () => window.clearTimeout(timer)
+  }, [receipt])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -136,11 +144,27 @@ export default function KasirDashboard() {
         : rpcError.message)
       return
     }
+    const snapshot: StrukData = {
+      customer: name.trim(),
+      stall: stallPlace(locations.find((item) => item.id === locationId)?.name || ''),
+      cashier: cashierName,
+      whenLabel: formatWib(orderedAt),
+      note: note.trim(),
+      lines: lines.map((line) => ({
+        name: line.menu.name,
+        qty: line.qty,
+        unit: menuUnit(line.menu.unit),
+        price: line.menu.price,
+        subtotal: line.qty * line.menu.price,
+      })),
+      total,
+    }
     setName('')
     setNote('')
     setCart({})
     setWhen(jakartaInputNow())
-    setNotice(`Pesanan tercatat oleh ${cashierName}. Stok lapak ini sudah berkurang.`)
+    setNotice('')
+    setReceipt(snapshot)
     await load()
   }
 
@@ -151,8 +175,20 @@ export default function KasirDashboard() {
 
   if (loading) return <div className="p-6">Memuat...</div>
 
+  if (receipt) {
+    return (
+      <div className="mx-auto min-h-screen max-w-lg bg-paper px-4 py-5">
+        <Struk data={receipt} />
+        <div className="no-print mx-auto mt-4 flex max-w-xs gap-2">
+          <button type="button" onClick={() => window.print()} className="h-12 flex-1 rounded-lg bg-primary font-medium text-white">Cetak</button>
+          <button type="button" onClick={() => setReceipt(null)} className="h-12 flex-1 rounded-lg border bg-white font-medium">Pesanan baru</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="mx-auto min-h-screen max-w-lg px-4 pb-36 pt-5">
+    <div className="no-print mx-auto min-h-screen max-w-lg px-4 pb-36 pt-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-primary">Angkringan Van Java</p>
@@ -164,6 +200,7 @@ export default function KasirDashboard() {
 
       <div className="mb-4 flex gap-2 text-sm">
         <Link href="/kasir/stok" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Stok</Link>
+        <Link href="/riwayat" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Riwayat</Link>
         {role === 'owner' ? <Link href="/owner/dashboard" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Pantau</Link> : null}
       </div>
 
@@ -238,7 +275,7 @@ export default function KasirDashboard() {
             <p className="text-xl font-semibold">{rupiah(total)}</p>
           </div>
           <button type="button" disabled={pending || lines.length === 0} onClick={checkout} className="h-12 rounded-lg bg-primary px-4 font-medium text-white disabled:opacity-50">
-            {pending ? 'Menyimpan...' : 'Catat pesanan'}
+            {pending ? 'Menyimpan...' : 'Cetak pesanan'}
           </button>
         </div>
       </div>
