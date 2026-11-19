@@ -6,3 +6,9 @@ body {
   background: #f3efe7;
   color: #2a1c16;
 }
+
+@media print {
+  body { background: #fff !important; }
+  .no-print { display: none !important; }
+  .struk { width: 72mm; max-width: 72mm; margin: 0; box-shadow: none !important; }
+}
