@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatWib, jakartaInputNow, jakartaInputToIso, menuUnit, rupiah, stallPlace } from '@/lib/shop'
+import { formatWib, jakartaInputNow, jakartaInputToIso, menuKind, menuUnit, rupiah, stallPlace } from '@/lib/shop'
 import { Struk, type StrukData } from '@/app/components/Struk'
 
-type Menu = { id: string; name: string; price: number; unit?: string | null }
+type Menu = { id: string; name: string; price: number; unit?: string | null; category?: string | null }
 type Location = { id: string; name: string }
 type Stock = { menu_id: string; location_id: string; quantity: number }
 
@@ -29,6 +29,7 @@ export default function KasirDashboard() {
   const [role, setRole] = useState('')
   const [cashierName, setCashierName] = useState('Kasir')
   const [receipt, setReceipt] = useState<StrukData | null>(null)
+  const [kind, setKind] = useState<'makanan' | 'minuman'>('makanan')
 
   useEffect(() => {
     setWhen(jakartaInputNow())
@@ -58,7 +59,7 @@ export default function KasirDashboard() {
     setCashierName((profile?.full_name || '').trim() || fromEmail || 'Kasir')
     const [{ data: locs }, menuResult, { data: stockData, error: stockError }] = await Promise.all([
       supabase.from('locations').select('id, name').order('name'),
-      supabase.from('menus').select('id, name, price, unit').eq('is_active', true).order('name'),
+      supabase.from('menus').select('id, name, price, unit, category').eq('is_active', true).order('name'),
       supabase.from('stocks').select('menu_id, location_id, quantity'),
     ])
     let menuData = menuResult.data as Menu[] | null
@@ -75,6 +76,10 @@ export default function KasirDashboard() {
     setLoading(false)
   }
 
+  const visibleMenus = useMemo(
+    () => menus.filter((menu) => menuKind(menu.category) === kind),
+    [menus, kind],
+  )
   const lines = useMemo(
     () => menus.map((menu) => ({ menu, qty: cart[menu.id] || 0 })).filter((line) => line.qty > 0),
     [menus, cart],
@@ -247,8 +252,13 @@ export default function KasirDashboard() {
       {notice ? <p className="mb-3 rounded-lg bg-white px-3 py-2 text-sm text-primary">{notice}</p> : null}
       {error ? <p className="mb-3 rounded-lg bg-white px-3 py-2 text-sm text-sogan">{error}</p> : null}
 
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => setKind('makanan')} className={'h-12 rounded-xl font-semibold ' + (kind === 'makanan' ? 'bg-primary text-white' : 'bg-white')}>Makanan</button>
+        <button type="button" onClick={() => setKind('minuman')} className={'h-12 rounded-xl font-semibold ' + (kind === 'minuman' ? 'bg-primary text-white' : 'bg-white')}>Minuman</button>
+      </div>
+
       <ul className="space-y-2">
-        {menus.map((menu) => {
+        {visibleMenus.map((menu) => {
           const qty = cart[menu.id] || 0
           const left = leftOf(menu.id)
           const unit = menuUnit(menu.unit)
@@ -265,7 +275,7 @@ export default function KasirDashboard() {
             </li>
           )
         })}
-        {menus.length === 0 ? <li className="rounded-xl bg-white p-4 text-sm">Belum ada menu. Owner bisa menambah di halaman Menu.</li> : null}
+        {visibleMenus.length === 0 ? <li className="rounded-xl bg-white p-4 text-sm">{kind === 'minuman' ? 'Belum ada minuman. Owner bisa menambah di halaman Menu.' : 'Belum ada makanan. Owner bisa menambah di halaman Menu.'}</li> : null}
       </ul>
 
       <div className="fixed inset-x-0 bottom-0 border-t bg-white px-4 py-3">
