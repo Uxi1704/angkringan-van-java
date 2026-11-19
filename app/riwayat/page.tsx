@@ -56,17 +56,23 @@ export default function RiwayatPage() {
     }
     setRole(profile.role || '')
     const withItems = 'id, total, status, created_at, ordered_at, customer_name, note, kasir_name, location_id, locations(name), order_items(menu_name, quantity, price, subtotal)'
-    let result = await supabase.from('orders').select(withItems).order('created_at', { ascending: false }).limit(80)
-    if (result.error && /kasir_name|note/i.test(result.error.message)) {
+    const first = await supabase.from('orders').select(withItems).order('created_at', { ascending: false }).limit(80)
+    let data = first.data as any[] | null
+    let queryError = first.error
+    if (queryError && /kasir_name|note/i.test(queryError.message)) {
       const slimmer = 'id, total, status, created_at, ordered_at, customer_name, location_id, locations(name), order_items(menu_name, quantity, price, subtotal)'
-      result = await supabase.from('orders').select(slimmer).order('created_at', { ascending: false }).limit(80)
+      const second = await supabase.from('orders').select(slimmer).order('created_at', { ascending: false }).limit(80)
+      data = second.data as any[] | null
+      queryError = second.error
     }
-    if (result.error && /order_items|relationship/i.test(result.error.message)) {
+    if (queryError && /order_items|relationship/i.test(queryError.message)) {
       const plain = 'id, total, status, created_at, ordered_at, customer_name, location_id, locations(name)'
-      result = await supabase.from('orders').select(plain).order('created_at', { ascending: false }).limit(80)
+      const third = await supabase.from('orders').select(plain).order('created_at', { ascending: false }).limit(80)
+      data = third.data as any[] | null
+      queryError = third.error
     }
-    if (result.error) setError(result.error.message)
-    const rows = ((result.data || []) as any[]).map((row) => ({
+    if (queryError) setError(queryError.message)
+    const rows = ((data || []) as any[]).map((row) => ({
       ...row,
       note: row.note ?? null,
       kasir_name: row.kasir_name ?? null,
