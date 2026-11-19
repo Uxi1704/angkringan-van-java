@@ -38,7 +38,7 @@ export default function MenuPage() {
     }
     const { data, error: queryError } = await supabase.from('menus').select('*').order('name')
     if (queryError) setError(queryError.message)
-    else setMenus(data || [])
+    else setMenus((data || []).filter((menu) => menu.is_active !== false))
     setLoading(false)
   }
 
@@ -49,9 +49,14 @@ export default function MenuPage() {
     return message
   }
 
+  async function takenNames() {
+    const { data } = await supabase.from('menus').select('name')
+    return new Set((data || []).map((menu) => String(menu.name || '').toLowerCase()))
+  }
+
   async function seed() {
     setError('')
-    const existing = new Set(menus.map((menu) => menu.name.toLowerCase()))
+    const existing = await takenNames()
     const missing = STARTER_MENUS.filter((menu) => !existing.has(menu.name.toLowerCase()))
     if (missing.length === 0) return
     const { error: insertError } = await supabase.from('menus').insert(missing.map((menu) => ({
@@ -66,7 +71,7 @@ export default function MenuPage() {
 
   async function seedDrinks() {
     setError('')
-    const existing = new Set(menus.map((menu) => menu.name.toLowerCase()))
+    const existing = await takenNames()
     const missing = STARTER_DRINKS.filter((menu) => !existing.has(menu.name.toLowerCase()))
     if (missing.length === 0) return
     const { error: insertError } = await supabase.from('menus').insert(missing.map((menu) => ({
@@ -102,12 +107,17 @@ export default function MenuPage() {
       price: parseInt(price, 10),
       category: kind,
       unit: unit.trim().slice(0, 20),
+      is_active: true,
     }
     const result = editing
-      ? await supabase.from('menus').update(payload).eq('id', editing.id)
-      : await supabase.from('menus').insert(payload)
+      ? await supabase.from('menus').update(payload).eq('id', editing.id).select('id')
+      : await supabase.from('menus').insert(payload).select('id')
     if (result.error) {
       setError(explain(result.error.message))
+      return
+    }
+    if (!result.data || result.data.length === 0) {
+      setError('Menu tidak tersimpan. Masuk sebagai owner, lalu coba lagi.')
       return
     }
     resetForm()
@@ -116,9 +126,19 @@ export default function MenuPage() {
 
   async function handleDelete(id: string) {
     if (!confirm('Hapus menu ini?')) return
-    const { error: deleteError } = await supabase.from('menus').delete().eq('id', id)
-    if (deleteError) setError(deleteError.message)
-    else await loadMenus()
+    setError('')
+    await supabase.from('stocks').delete().eq('menu_id', id)
+    const { data, error: hideError } = await supabase.from('menus').update({ is_active: false }).eq('id', id).select('id')
+    if (hideError) {
+      setError(hideError.message)
+      return
+    }
+    if (!data || data.length === 0) {
+      setError('Menu tidak terhapus. Masuk sebagai owner, lalu coba lagi.')
+      return
+    }
+    if (editing?.id === id) resetForm()
+    setMenus((current) => current.filter((menu) => menu.id !== id))
   }
 
   function startEdit(menu: Menu) {
