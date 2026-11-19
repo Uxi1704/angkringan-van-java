@@ -9,6 +9,23 @@ export const STARTER_MENUS = [
   { name: "Sosis bakar", price: 7000 },
 ] as const;
 
+export const STARTER_DRINKS = [
+  { name: "Es teh", price: 3000 },
+  { name: "Teh panas", price: 3000 },
+  { name: "Es jeruk", price: 5000 },
+  { name: "Kopi hitam", price: 4000 },
+  { name: "Kopi susu", price: 5000 },
+  { name: "Susu", price: 5000 },
+  { name: "Jahe", price: 4000 },
+  { name: "Air mineral", price: 3000 },
+] as const;
+
+export type MenuKind = "makanan" | "minuman";
+
+export function menuKind(category?: string | null): MenuKind {
+  return (category || "").trim().toLowerCase() === "minuman" ? "minuman" : "makanan";
+}
+
 export function rupiah(value: number) {
   return "Rp " + value.toLocaleString("id-ID");
 }
