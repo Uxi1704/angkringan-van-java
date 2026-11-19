@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { menuUnit, stallPlace } from '@/lib/shop'
+import { menuKind, menuUnit, stallPlace } from '@/lib/shop'
 
 type Location = { id: string; name: string }
-type Menu = { id: string; name: string; unit?: string | null }
+type Menu = { id: string; name: string; unit?: string | null; category?: string | null }
 type Stock = { id: string; menu_id: string; location_id: string; quantity: number }
 
 export default function StokPage() {
@@ -21,6 +21,7 @@ export default function StokPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState('')
+  const [kind, setKind] = useState<'makanan' | 'minuman'>('makanan')
 
   useEffect(() => { load() }, [])
 
@@ -32,7 +33,7 @@ export default function StokPage() {
     }
     const [{ data: locs }, menuResult, { data: stockData, error: stockError }] = await Promise.all([
       supabase.from('locations').select('id, name').order('name'),
-      supabase.from('menus').select('id, name, unit').eq('is_active', true).order('name'),
+      supabase.from('menus').select('id, name, unit, category').eq('is_active', true).order('name'),
       supabase.from('stocks').select('id, menu_id, location_id, quantity'),
     ])
     let menuData = menuResult.data as Menu[] | null
@@ -103,11 +104,15 @@ export default function StokPage() {
           </button>
         ))}
       </div>
-      <p className="mb-4 text-sm text-stone-600">Ketik jumlah yang tersisa, lalu simpan. Satuan mengikuti menu.</p>
+      <p className="mb-3 text-sm text-stone-600">Ketik jumlah yang tersisa, lalu simpan. Satuan mengikuti menu.</p>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => setKind('makanan')} className={'h-11 rounded-xl font-semibold ' + (kind === 'makanan' ? 'bg-ink text-white' : 'bg-white')}>Makanan</button>
+        <button type="button" onClick={() => setKind('minuman')} className={'h-11 rounded-xl font-semibold ' + (kind === 'minuman' ? 'bg-ink text-white' : 'bg-white')}>Minuman</button>
+      </div>
       {notice ? <p className="mb-3 text-sm text-primary">{notice}</p> : null}
       {error ? <p className="mb-3 text-sm text-sogan">{error}</p> : null}
       <ul className="space-y-2">
-        {menus.map((menu) => {
+        {menus.filter((menu) => menuKind(menu.category) === kind).map((menu) => {
           const qty = stocks.find((row) => row.menu_id === menu.id && row.location_id === locationId)?.quantity ?? 0
           const unit = menuUnit(menu.unit)
           return (

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { STARTER_MENUS, menuUnit, rupiah } from '@/lib/shop'
+import { STARTER_DRINKS, STARTER_MENUS, menuKind, menuUnit, rupiah } from '@/lib/shop'
 
 type Menu = {
   id: string
@@ -22,7 +22,7 @@ export default function MenuPage() {
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
   const [unit, setUnit] = useState('tusuk')
-  const [category, setCategory] = useState('')
+  const [kind, setKind] = useState<'makanan' | 'minuman'>('makanan')
   const [editing, setEditing] = useState<Menu | null>(null)
   const [error, setError] = useState('')
   const supabase = createClient()
@@ -57,11 +57,32 @@ export default function MenuPage() {
     const { error: insertError } = await supabase.from('menus').insert(missing.map((menu) => ({
       name: menu.name,
       price: menu.price,
-      category: 'gorengan',
+      category: 'makanan',
       unit: 'tusuk',
     })))
     if (insertError) setError(explain(insertError.message))
     else await loadMenus()
+  }
+
+  async function seedDrinks() {
+    setError('')
+    const existing = new Set(menus.map((menu) => menu.name.toLowerCase()))
+    const missing = STARTER_DRINKS.filter((menu) => !existing.has(menu.name.toLowerCase()))
+    if (missing.length === 0) return
+    const { error: insertError } = await supabase.from('menus').insert(missing.map((menu) => ({
+      name: menu.name,
+      price: menu.price,
+      category: 'minuman',
+      unit: 'gelas',
+    })))
+    if (insertError) setError(explain(insertError.message))
+    else await loadMenus()
+  }
+
+  function pickKind(next: 'makanan' | 'minuman') {
+    setKind(next)
+    if (next === 'minuman' && unit === 'tusuk') setUnit('gelas')
+    if (next === 'makanan' && unit === 'gelas') setUnit('tusuk')
   }
 
   function resetForm() {
@@ -69,7 +90,7 @@ export default function MenuPage() {
     setName('')
     setPrice('')
     setUnit('tusuk')
-    setCategory('')
+    setKind('makanan')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -79,7 +100,7 @@ export default function MenuPage() {
     const payload = {
       name,
       price: parseInt(price, 10),
-      category: category || null,
+      category: kind,
       unit: unit.trim().slice(0, 20),
     }
     const result = editing
@@ -105,7 +126,8 @@ export default function MenuPage() {
     setName(menu.name)
     setPrice(menu.price.toString())
     setUnit(menuUnit(menu.unit))
-    setCategory(menu.category || '')
+    setKind(menuKind(menu.category))
+    if (menuKind(menu.category) === 'minuman' && menuUnit(menu.unit) === 'tusuk') setUnit('gelas')
   }
 
   if (loading) return <div className="p-6">Memuat...</div>
@@ -117,9 +139,10 @@ export default function MenuPage() {
         <button onClick={() => router.push('/owner/dashboard')} className="text-sm text-primary">← Pantau</button>
       </div>
       {error ? <p className="mb-3 text-sm text-sogan">{error}</p> : null}
-      <button type="button" onClick={seed} className="mb-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-primary">
-        Isi menu awal angkringan
-      </button>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <button type="button" onClick={seed} className="rounded-lg bg-white px-3 py-3 text-sm font-medium text-primary">Isi menu makanan</button>
+        <button type="button" onClick={seedDrinks} className="rounded-lg bg-white px-3 py-3 text-sm font-medium text-primary">Isi menu minuman</button>
+      </div>
       <form onSubmit={handleSubmit} className="mb-6 space-y-3 rounded-xl bg-white p-4">
         <h2 className="font-semibold">{editing ? 'Edit menu' : 'Tambah menu'}</h2>
         <input type="text" placeholder="Nama menu" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border px-3 py-2" required />
@@ -140,7 +163,13 @@ export default function MenuPage() {
           </div>
           <input type="text" placeholder="Atau ketik satuan lain" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full rounded border px-3 py-2" required />
         </div>
-        <input type="text" placeholder="Kategori (opsional)" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded border px-3 py-2" />
+        <div>
+          <p className="mb-2 text-sm">Jenis</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => pickKind('makanan')} className={'h-11 rounded-lg font-medium ' + (kind === 'makanan' ? 'bg-primary text-white' : 'bg-paper')}>Makanan</button>
+            <button type="button" onClick={() => pickKind('minuman')} className={'h-11 rounded-lg font-medium ' + (kind === 'minuman' ? 'bg-primary text-white' : 'bg-paper')}>Minuman</button>
+          </div>
+        </div>
         <div className="flex gap-2">
           <button type="submit" className="rounded bg-primary px-4 py-2 text-white">{editing ? 'Update' : 'Tambah'}</button>
           {editing ? (
@@ -153,7 +182,7 @@ export default function MenuPage() {
           <div key={menu.id} className="flex items-center justify-between rounded-xl bg-white p-4">
             <div>
               <div className="font-medium">{menu.name}</div>
-              <div className="text-sm text-stone-600">{rupiah(menu.price)} · {menuUnit(menu.unit)}{menu.category ? ` · ${menu.category}` : ''}</div>
+              <div className="text-sm text-stone-600">{rupiah(menu.price)} · {menuUnit(menu.unit)} · {menuKind(menu.category) === 'minuman' ? 'Minuman' : 'Makanan'}</div>
             </div>
             <div className="flex gap-3 text-sm">
               <button onClick={() => startEdit(menu)} className="text-primary">Edit</button>
