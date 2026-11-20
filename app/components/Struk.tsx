@@ -11,6 +11,7 @@ export type StrukLine = {
 export type StrukData = {
   customer: string
   stall: string
+  brand?: string
   cashier: string
   whenLabel: string
   note?: string | null
@@ -21,7 +22,7 @@ export type StrukData = {
 export function Struk({ data }: { data: StrukData }) {
   return (
     <article className="struk mx-auto w-full max-w-xs rounded-sm bg-white px-4 py-5 text-[13px] leading-5 text-ink shadow-sm">
-      <p className="text-center text-base font-bold tracking-wide">ANGKRINGAN VAN JAVA</p>
+      <p className="text-center text-base font-bold tracking-wide">{(data.brand || 'Angkringan').toUpperCase()}</p>
       <p className="text-center">{data.stall || 'Lapak'}</p>
       <p className="my-2 border-t border-dashed border-stone-400" />
       <p>Pelanggan: {data.customer || 'Tanpa nama'}</p>

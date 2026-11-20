@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { dayKeyJakarta, dayLabel, formatWib, rupiah, stallPlace } from '@/lib/shop'
+import { dayKeyJakarta, dayLabel, formatWib, rupiah, sortLocations, stallBrand } from '@/lib/shop'
 
 type Location = { id: string; name: string }
 type Order = {
@@ -95,7 +95,7 @@ export default function OwnerDashboard() {
       kasir_name: row.kasir_name ?? null,
       locations: Array.isArray(row.locations) ? row.locations[0] || null : row.locations,
     }))
-    setLocations(locRes.data || [])
+    setLocations(sortLocations(locRes.data || []))
     setOrders(normalized as Order[])
     setLoading(false)
   }
@@ -125,19 +125,21 @@ export default function OwnerDashboard() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-5">
-      <p className="text-xs font-medium text-primary">Pemilik</p>
-      <h1 className="mb-3 text-2xl font-bold">Pantauan penjualan</h1>
-      <Link href="/owner/tim" className="mb-2 flex h-14 items-center justify-center rounded-xl bg-primary text-base font-semibold text-white">
-        Tambah akun kasir
-      </Link>
-      <Link href="/riwayat" className="mb-4 flex h-12 items-center justify-center rounded-xl bg-white text-sm font-semibold text-primary">
-        Riwayat pesanan
-      </Link>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex -space-x-3">
+          <img src="/logo-vanjava65.jpg" alt="VANJAVA65" className="h-14 w-14 rounded-full object-cover ring-2 ring-paper" />
+          <img src="/logo-arjuna85.jpg" alt="ARJUNA85" className="h-14 w-14 rounded-full object-cover ring-2 ring-paper" />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-sogan">Pemilik</p>
+          <h1 className="text-xl font-bold leading-tight">Pantauan dua angkringan</h1>
+        </div>
+      </div>
       <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
-        <Link href="/owner/menu" className="rounded-xl bg-white p-3 font-medium">Menu</Link>
-        <Link href="/kasir/stok" className="rounded-xl bg-white p-3 font-medium">Stok</Link>
-        <Link href="/kasir/dashboard" className="rounded-xl bg-white p-3 font-medium">Kasir</Link>
-        <Link href="/owner/tim" className="rounded-xl bg-white p-3 font-medium">Akun kasir</Link>
+        <Link href="/owner/menu" className="rounded-2xl bg-primary p-4 font-semibold text-white shadow-sm">Menu lapak</Link>
+        <Link href="/kasir/stok" className="rounded-2xl bg-white p-4 font-semibold shadow-sm">Stok</Link>
+        <Link href="/kasir/dashboard" className="rounded-2xl bg-white p-4 font-semibold shadow-sm">Kasir</Link>
+        <Link href="/owner/tim" className="rounded-2xl bg-white p-4 font-semibold shadow-sm">Akun kasir</Link>
       </div>
       <div className="mb-2 flex gap-2 overflow-x-auto">
         {ranges.map((item) => (
@@ -147,36 +149,44 @@ export default function OwnerDashboard() {
         ))}
       </div>
       <div className="mb-4 flex gap-2 overflow-x-auto">
-        <button type="button" onClick={() => setStall('all')} className={'h-10 shrink-0 rounded-full px-4 text-sm ' + (stall === 'all' ? 'bg-ink text-white' : 'bg-white')}>Semua lapak</button>
+        <button type="button" onClick={() => setStall('all')} className={'h-10 shrink-0 rounded-full px-4 text-sm ' + (stall === 'all' ? 'bg-ink text-white' : 'bg-white')}>Semua</button>
         {locations.map((location) => (
           <button key={location.id} type="button" onClick={() => setStall(location.id)} className={'h-10 shrink-0 rounded-full px-4 text-sm ' + (stall === location.id ? 'bg-ink text-white' : 'bg-white')}>
-            {stallPlace(location.name)}
+            {stallBrand(location.name).short}
           </button>
         ))}
       </div>
       {error ? <p className="mb-3 text-sm text-sogan">{error}</p> : null}
-      <section className="mb-4 rounded-xl bg-primary p-5 text-white">
+      <section className="mb-4 rounded-2xl bg-primary p-5 text-white shadow-sm">
         <p className="text-sm text-white/75">Omzet</p>
         <p className="text-4xl font-semibold">{rupiah(omzet)}</p>
         <p className="mt-2 text-sm text-white/80">{filtered.length} nota</p>
       </section>
-      <section className="mb-4 rounded-xl bg-white p-4">
-        <h2 className="text-lg font-semibold">Per lapak</h2>
-        <ul className="mt-3 space-y-2 text-sm">
-          {locations.map((location) => {
-            const rows = ranged.filter((order) => order.location_id === location.id)
-            const sum = rows.reduce((total, order) => total + order.total, 0)
-            return (
-              <li key={location.id} className="flex items-center justify-between gap-3">
-                <span className="font-medium">{stallPlace(location.name)}</span>
-                <span className="text-stone-500">{rows.length} nota</span>
-                <span>{rupiah(sum)}</span>
-              </li>
-            )
-          })}
-        </ul>
+      <section className="mb-4 grid gap-2">
+        {locations.map((location) => {
+          const brand = stallBrand(location.name)
+          const rows = ranged.filter((order) => order.location_id === location.id)
+          const sum = rows.reduce((total, order) => total + order.total, 0)
+          const active = stall === location.id
+          return (
+            <button key={location.id} type="button" onClick={() => setStall(location.id)} className={'flex items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm ' + (active ? 'ring-2 ring-primary' : '')}>
+              <img src={brand.logo} alt={brand.short} className="h-14 w-14 rounded-full object-cover" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{brand.brand}</span>
+                <span className="block text-xs text-stone-500">{brand.place}</span>
+              </span>
+              <span className="text-right">
+                <span className="block font-semibold">{rupiah(sum)}</span>
+                <span className="block text-xs text-stone-500">{rows.length} nota</span>
+              </span>
+            </button>
+          )
+        })}
       </section>
-      <section className="mb-4 rounded-xl bg-white p-4">
+      <Link href="/riwayat" className="mb-4 flex h-12 items-center justify-center rounded-2xl bg-white text-sm font-semibold text-primary shadow-sm">
+        Riwayat pesanan
+      </Link>
+      <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold">Laporan {range === '30d' ? '30 hari' : 'periode ini'}</h2>
         {days.length === 0 ? <p className="mt-2 text-sm text-stone-500">Belum ada penjualan.</p> : (
           <ul className="mt-3 space-y-2 text-sm">
@@ -198,7 +208,7 @@ export default function OwnerDashboard() {
               <li key={order.id} className="flex justify-between gap-3">
                 <span className="min-w-0">
                   <span className="font-medium">{order.customer_name || 'Tanpa nama'}</span>
-                  <span className="block text-xs text-stone-500">{stallPlace(order.locations?.name || '')} · {formatWib(order.ordered_at || order.created_at)}</span>
+                  <span className="block text-xs text-stone-500">{stallBrand(order.locations?.name || '').short} · {formatWib(order.ordered_at || order.created_at)}</span>
                   {order.kasir_name ? <span className="block text-xs text-stone-600">Kasir: {order.kasir_name}</span> : null}
                   {order.note ? <span className="mt-1 block text-xs text-stone-600">Catatan: {order.note}</span> : null}
                 </span>

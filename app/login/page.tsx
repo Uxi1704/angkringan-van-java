@@ -33,9 +33,13 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md">
-        <p className="text-center text-xs font-medium text-primary">Dua lapak, satu buku</p>
-        <h1 className="mb-6 text-center text-2xl font-bold">Angkringan Van Java</h1>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-md">
+        <div className="mb-4 flex justify-center gap-4">
+          <img src="/logo-vanjava65.jpg" alt="VANJAVA65" className="h-20 w-20 rounded-full object-cover" />
+          <img src="/logo-arjuna85.jpg" alt="ARJUNA85" className="h-20 w-20 rounded-full object-cover" />
+        </div>
+        <p className="text-center text-xs font-medium text-sogan">Simpang Bangkal · Simpang Sebabi</p>
+        <h1 className="mb-6 text-center text-xl font-bold">VANJAVA65 & ARJUNA85</h1>
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">Email</label>

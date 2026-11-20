@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatWib, stallPlace } from '@/lib/shop'
+import { formatWib, stallBrand } from '@/lib/shop'
 import { Struk, type StrukData } from '@/app/components/Struk'
 
 type Item = { menu_name: string; quantity: number; price: number; subtotal: number }
@@ -104,9 +104,11 @@ export default function RiwayatPage() {
 
   function openReceipt(order: Order) {
     const when = order.ordered_at || order.created_at
+    const brand = stallBrand(order.locations?.name || '')
     setReceipt({
       customer: order.customer_name || 'Tanpa nama',
-      stall: stallPlace(order.locations?.name || ''),
+      stall: brand.place,
+      brand: brand.brand,
       cashier: order.kasir_name || 'Kasir',
       whenLabel: formatWib(when),
       note: order.note,
@@ -163,7 +165,7 @@ export default function RiwayatPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">{order.customer_name || 'Tanpa nama'}</p>
-                    <p className="text-xs text-stone-500">{stallPlace(order.locations?.name || '')} · {formatWib(when)}</p>
+                    <p className="text-xs text-stone-500">{stallBrand(order.locations?.name || '').short} · {stallBrand(order.locations?.name || '').place} · {formatWib(when)}</p>
                     {order.kasir_name ? <p className="text-xs text-stone-600">Kasir: {order.kasir_name}</p> : null}
                   </div>
                   <button type="button" onClick={() => openReceipt(order)} className="shrink-0 rounded-lg border px-3 py-2 text-xs font-medium">Struk</button>

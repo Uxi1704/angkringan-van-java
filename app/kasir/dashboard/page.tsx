@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatWib, jakartaInputNow, jakartaInputToIso, menuKind, menuUnit, rupiah, stallPlace } from '@/lib/shop'
+import { formatWib, jakartaInputNow, jakartaInputToIso, menuKind, menuUnit, rupiah, sortLocations, stallBrand } from '@/lib/shop'
 import { Struk, type StrukData } from '@/app/components/Struk'
+import { StallSwitch } from '@/app/components/StallSwitch'
 
-type Menu = { id: string; name: string; price: number; unit?: string | null; category?: string | null }
+type Menu = { id: string; name: string; price: number; unit?: string | null; category?: string | null; location_id?: string | null }
 type Location = { id: string; name: string }
 type Stock = { menu_id: string; location_id: string; quantity: number }
 
@@ -30,6 +31,7 @@ export default function KasirDashboard() {
   const [cashierName, setCashierName] = useState('Kasir')
   const [receipt, setReceipt] = useState<StrukData | null>(null)
   const [kind, setKind] = useState<'makanan' | 'minuman'>('makanan')
+  const [splitReady, setSplitReady] = useState(true)
 
   useEffect(() => {
     setWhen(jakartaInputNow())
@@ -59,15 +61,24 @@ export default function KasirDashboard() {
     setCashierName((profile?.full_name || '').trim() || fromEmail || 'Kasir')
     const [{ data: locs }, menuResult, { data: stockData, error: stockError }] = await Promise.all([
       supabase.from('locations').select('id, name').order('name'),
-      supabase.from('menus').select('id, name, price, unit, category').eq('is_active', true).order('name'),
+      supabase.from('menus').select('id, name, price, unit, category, location_id').eq('is_active', true).order('name'),
       supabase.from('stocks').select('menu_id, location_id, quantity'),
     ])
     let menuData = menuResult.data as Menu[] | null
-    if (menuResult.error && /unit/i.test(menuResult.error.message)) {
+    let menuError = menuResult.error
+    if (menuError && /location_id/i.test(menuError.message)) {
+      setSplitReady(false)
+      const plain = await supabase.from('menus').select('id, name, price, unit, category').eq('is_active', true).order('name')
+      menuData = plain.data
+      menuError = plain.error
+    } else {
+      setSplitReady(true)
+    }
+    if (menuError && /unit/i.test(menuError.message)) {
       const plain = await supabase.from('menus').select('id, name, price').eq('is_active', true).order('name')
       menuData = plain.data
     }
-    const nextLocs = locs || []
+    const nextLocs = sortLocations(locs || [])
     setLocations(nextLocs)
     setLocationId((current) => current || nextLocs[0]?.id || '')
     setMenus(menuData || [])
@@ -76,13 +87,17 @@ export default function KasirDashboard() {
     setLoading(false)
   }
 
+  const stallMenus = useMemo(
+    () => menus.filter((menu) => !splitReady || menu.location_id === locationId),
+    [menus, splitReady, locationId],
+  )
   const visibleMenus = useMemo(
-    () => menus.filter((menu) => menuKind(menu.category) === kind),
-    [menus, kind],
+    () => stallMenus.filter((menu) => menuKind(menu.category) === kind),
+    [stallMenus, kind],
   )
   const lines = useMemo(
-    () => menus.map((menu) => ({ menu, qty: cart[menu.id] || 0 })).filter((line) => line.qty > 0),
-    [menus, cart],
+    () => stallMenus.map((menu) => ({ menu, qty: cart[menu.id] || 0 })).filter((line) => line.qty > 0),
+    [stallMenus, cart],
   )
   const total = lines.reduce((sum, line) => sum + line.qty * line.menu.price, 0)
   const count = lines.reduce((sum, line) => sum + line.qty, 0)
@@ -149,9 +164,11 @@ export default function KasirDashboard() {
         : rpcError.message)
       return
     }
+    const picked = stallBrand(locations.find((item) => item.id === locationId)?.name || '')
     const snapshot: StrukData = {
       customer: name.trim(),
-      stall: stallPlace(locations.find((item) => item.id === locationId)?.name || ''),
+      stall: picked.place,
+      brand: picked.brand,
       cashier: cashierName,
       whenLabel: formatWib(orderedAt),
       note: note.trim(),
@@ -192,40 +209,30 @@ export default function KasirDashboard() {
     )
   }
 
+  const current = stallBrand(locations.find((item) => item.id === locationId)?.name || '')
+
   return (
     <div className="no-print mx-auto min-h-screen max-w-lg px-4 pb-36 pt-5">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-primary">Angkringan Van Java</p>
-          <h1 className="text-2xl font-bold">Catat pesanan</h1>
-          <p className="text-xs text-stone-500">Kasir: {cashierName}</p>
+        <div className="flex items-center gap-3">
+          <img src={current.logo} alt={current.short} className="h-14 w-14 rounded-full object-cover" />
+          <div>
+            <p className="text-xs font-medium text-primary">{current.brand}</p>
+            <h1 className="text-2xl font-bold">Catat pesanan</h1>
+            <p className="text-xs text-stone-500">Kasir: {cashierName} · {current.place}</p>
+          </div>
         </div>
         <button onClick={logout} className="text-sm text-sogan">Keluar</button>
       </div>
 
       <div className="mb-4 flex gap-2 text-sm">
-        <Link href="/kasir/stok" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Stok</Link>
-        <Link href="/riwayat" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Riwayat</Link>
-        {role === 'owner' ? <Link href="/owner/dashboard" className="rounded-full bg-white px-3 py-2 font-medium text-primary">Pantau</Link> : null}
+        <Link href="/kasir/stok" className="rounded-full bg-white px-3 py-2 font-medium text-primary shadow-sm">Stok</Link>
+        <Link href="/riwayat" className="rounded-full bg-white px-3 py-2 font-medium text-primary shadow-sm">Riwayat</Link>
+        {role === 'owner' ? <Link href="/owner/dashboard" className="rounded-full bg-white px-3 py-2 font-medium text-primary shadow-sm">Pantau</Link> : null}
       </div>
 
-      <p className="mb-2 text-sm font-medium">Lapak</p>
-      <div className="mb-4 grid grid-cols-2 gap-2">
-        {locations.map((location) => {
-          const active = location.id === locationId
-          return (
-            <button
-              key={location.id}
-              type="button"
-              onClick={() => { setLocationId(location.id); setCart({}) }}
-              className={'rounded-xl px-3 py-3 text-left ' + (active ? 'bg-primary text-white' : 'bg-white')}
-            >
-              <span className="block text-xs opacity-80">{location.name}</span>
-              <span className="text-lg font-semibold">{stallPlace(location.name)}</span>
-            </button>
-          )
-        })}
-      </div>
+      <StallSwitch locations={locations} value={locationId} onChange={(id) => { setLocationId(id); setCart({}) }} />
+      {!splitReady ? <p className="mb-4 mt-2 text-sm text-sogan">Menu dua angkringan masih tercampur. Jalankan supabase/006_menu_per_lapak.sql sekali.</p> : <div className="mb-4" />}
 
       <div className="mb-4 grid gap-3">
         <label className="block text-sm">
@@ -281,7 +288,7 @@ export default function KasirDashboard() {
       <div className="fixed inset-x-0 bottom-0 border-t bg-white px-4 py-3">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs text-stone-500">{countLabel} · {stallPlace(locations.find((item) => item.id === locationId)?.name || '')}</p>
+            <p className="truncate text-xs text-stone-500">{countLabel} · {current.short}</p>
             <p className="text-xl font-semibold">{rupiah(total)}</p>
           </div>
           <button type="button" disabled={pending || lines.length === 0} onClick={checkout} className="h-12 rounded-lg bg-primary px-4 font-medium text-white disabled:opacity-50">

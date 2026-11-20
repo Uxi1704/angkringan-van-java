@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { menuKind, menuUnit, stallPlace } from '@/lib/shop'
+import { menuKind, menuUnit, sortLocations, stallBrand } from '@/lib/shop'
+import { StallSwitch } from '@/app/components/StallSwitch'
 
 type Location = { id: string; name: string }
-type Menu = { id: string; name: string; unit?: string | null; category?: string | null }
+type Menu = { id: string; name: string; unit?: string | null; category?: string | null; location_id?: string | null }
 type Stock = { id: string; menu_id: string; location_id: string; quantity: number }
 
 export default function StokPage() {
@@ -22,6 +23,7 @@ export default function StokPage() {
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState('')
   const [kind, setKind] = useState<'makanan' | 'minuman'>('makanan')
+  const [splitReady, setSplitReady] = useState(true)
 
   useEffect(() => { load() }, [])
 
@@ -33,15 +35,24 @@ export default function StokPage() {
     }
     const [{ data: locs }, menuResult, { data: stockData, error: stockError }] = await Promise.all([
       supabase.from('locations').select('id, name').order('name'),
-      supabase.from('menus').select('id, name, unit, category').eq('is_active', true).order('name'),
+      supabase.from('menus').select('id, name, unit, category, location_id').eq('is_active', true).order('name'),
       supabase.from('stocks').select('id, menu_id, location_id, quantity'),
     ])
     let menuData = menuResult.data as Menu[] | null
-    if (menuResult.error && /unit/i.test(menuResult.error.message)) {
+    let menuError = menuResult.error
+    if (menuError && /location_id/i.test(menuError.message)) {
+      setSplitReady(false)
+      const plain = await supabase.from('menus').select('id, name, unit, category').eq('is_active', true).order('name')
+      menuData = plain.data
+      menuError = plain.error
+    } else {
+      setSplitReady(true)
+    }
+    if (menuError && /unit/i.test(menuError.message)) {
       const plain = await supabase.from('menus').select('id, name').eq('is_active', true).order('name')
       menuData = plain.data
     }
-    const nextLocs = locs || []
+    const nextLocs = sortLocations(locs || [])
     setLocations(nextLocs)
     setLocationId((current) => current || nextLocs[0]?.id || '')
     setMenus(menuData || [])
@@ -88,23 +99,15 @@ export default function StokPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-5">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Stok</h1>
+        <div>
+          <p className="text-xs font-medium text-sogan">Stok per angkringan</p>
+          <h1 className="text-2xl font-bold">{stallBrand(locations.find((item) => item.id === locationId)?.name).short}</h1>
+        </div>
         <button onClick={() => router.push('/kasir/dashboard')} className="text-sm text-primary">← Kasir</button>
       </div>
-      <div className="mb-3 grid grid-cols-2 gap-2">
-        {locations.map((location) => (
-          <button
-            key={location.id}
-            type="button"
-            onClick={() => { setLocationId(location.id); setDrafts({}) }}
-            className={'rounded-xl px-3 py-3 text-left ' + (location.id === locationId ? 'bg-primary text-white' : 'bg-white')}
-          >
-            <span className="block text-xs opacity-80">{location.name}</span>
-            <span className="font-semibold">{stallPlace(location.name)}</span>
-          </button>
-        ))}
-      </div>
-      <p className="mb-3 text-sm text-stone-600">Ketik jumlah yang tersisa, lalu simpan. Satuan mengikuti menu.</p>
+      <StallSwitch locations={locations} value={locationId} onChange={(id) => { setLocationId(id); setDrafts({}) }} />
+      <p className="mb-3 mt-3 text-sm text-stone-600">Ketik jumlah yang tersisa di lapak ini, lalu simpan.</p>
+      {!splitReady ? <p className="mb-3 text-sm text-sogan">Menu masih tercampur. Jalankan supabase/006_menu_per_lapak.sql sekali.</p> : null}
       <div className="mb-4 grid grid-cols-2 gap-2">
         <button type="button" onClick={() => setKind('makanan')} className={'h-11 rounded-xl font-semibold ' + (kind === 'makanan' ? 'bg-ink text-white' : 'bg-white')}>Makanan</button>
         <button type="button" onClick={() => setKind('minuman')} className={'h-11 rounded-xl font-semibold ' + (kind === 'minuman' ? 'bg-ink text-white' : 'bg-white')}>Minuman</button>
@@ -112,7 +115,7 @@ export default function StokPage() {
       {notice ? <p className="mb-3 text-sm text-primary">{notice}</p> : null}
       {error ? <p className="mb-3 text-sm text-sogan">{error}</p> : null}
       <ul className="space-y-2">
-        {menus.filter((menu) => menuKind(menu.category) === kind).map((menu) => {
+        {menus.filter((menu) => menuKind(menu.category) === kind && (!splitReady || menu.location_id === locationId)).map((menu) => {
           const qty = stocks.find((row) => row.menu_id === menu.id && row.location_id === locationId)?.quantity ?? 0
           const unit = menuUnit(menu.unit)
           return (

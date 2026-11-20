@@ -22,6 +22,14 @@ export const STARTER_DRINKS = [
 
 export type MenuKind = "makanan" | "minuman";
 
+export type StallBrand = {
+  key: "vanjava" | "arjuna";
+  brand: string;
+  short: string;
+  place: string;
+  logo: string;
+};
+
 export function menuKind(category?: string | null): MenuKind {
   return (category || "").trim().toLowerCase() === "minuman" ? "minuman" : "makanan";
 }
@@ -35,8 +43,35 @@ export function menuUnit(unit?: string | null) {
   return value || "tusuk";
 }
 
+export function stallBrand(name?: string | null): StallBrand {
+  const value = (name || "").toLowerCase();
+  if (value.includes("arjuna") || value.includes("sebabi") || /java\s*2|\b2\b/.test(value)) {
+    return {
+      key: "arjuna",
+      brand: "Angkringan ARJUNA85",
+      short: "ARJUNA85",
+      place: "Simpang Sebabi",
+      logo: "/logo-arjuna85.jpg",
+    };
+  }
+  return {
+    key: "vanjava",
+    brand: "Angkringan VANJAVA65",
+    short: "VANJAVA65",
+    place: "Simpang Bangkal",
+    logo: "/logo-vanjava65.jpg",
+  };
+}
+
 export function stallPlace(name: string) {
-  return /2/.test(name) ? "Simpang Sebabi" : "Simpang Bangkal";
+  return stallBrand(name).place;
+}
+
+export function sortLocations<T extends { name: string }>(rows: T[]) {
+  return [...rows].sort((a, b) => {
+    const order = (stallBrand(a.name).key === "vanjava" ? 0 : 1) - (stallBrand(b.name).key === "vanjava" ? 0 : 1);
+    return order || a.name.localeCompare(b.name);
+  });
 }
 
 export function jakartaInputNow() {

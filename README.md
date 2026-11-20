@@ -1,6 +1,9 @@
-# Angkringan Van Java
+# Angkringan VANJAVA65 & ARJUNA85
 
-Kasir dan pantauan owner untuk dua lapak: Simpang Bangkal dan Simpang Sebabi.
+Kasir dan pantauan owner untuk dua lapak.
+
+- Simpang Bangkal = Angkringan VANJAVA65
+- Simpang Sebabi = Angkringan ARJUNA85
 
 Situs: https://angkringan-van-java.vercel.app
 
@@ -15,3 +18,6 @@ Sesudah itu owner bisa menambah kasir dan reset password dari halaman Akun kasir
 
 Lalu jalankan `supabase/005_nama_struk.sql`.
 Itu menambah nama kasir dan menulis nama itu di setiap nota.
+
+Lalu jalankan `supabase/006_menu_per_lapak.sql`.
+Itu mengganti nama lapak dan memisahkan daftar menu VANJAVA65 dengan ARJUNA85.
