@@ -212,7 +212,7 @@ export default function KasirDashboard() {
   const current = stallBrand(locations.find((item) => item.id === locationId)?.name || '')
 
   return (
-    <div className="no-print mx-auto min-h-screen max-w-lg px-4 pb-36 pt-5">
+    <div className="no-print mx-auto min-h-screen max-w-lg px-4 pb-40 pt-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <img src={current.logo} alt={current.short} className="h-14 w-14 rounded-full object-cover" />
@@ -285,13 +285,13 @@ export default function KasirDashboard() {
         {visibleMenus.length === 0 ? <li className="rounded-xl bg-white p-4 text-sm">{kind === 'minuman' ? 'Belum ada minuman. Owner bisa menambah di halaman Menu.' : 'Belum ada makanan. Owner bisa menambah di halaman Menu.'}</li> : null}
       </ul>
 
-      <div className="fixed inset-x-0 bottom-0 border-t bg-white px-4 py-3">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_30px_rgba(42,28,22,0.08)] backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-stone-500">{countLabel} · {current.short}</p>
-            <p className="text-xl font-semibold">{rupiah(total)}</p>
+            <p className="font-display text-2xl leading-none">{rupiah(total)}</p>
           </div>
-          <button type="button" disabled={pending || lines.length === 0} onClick={checkout} className="h-12 rounded-lg bg-primary px-4 font-medium text-white disabled:opacity-50">
+          <button type="button" disabled={pending || lines.length === 0} onClick={checkout} className="h-12 min-w-[9.5rem] rounded-xl bg-primary px-4 font-semibold text-white disabled:opacity-50">
             {pending ? 'Menyimpan...' : 'Cetak pesanan'}
           </button>
         </div>

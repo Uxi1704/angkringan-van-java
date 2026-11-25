@@ -184,7 +184,7 @@ export default function MenuPage() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <p className="text-xs font-medium text-sogan">Kelola menu</p>
-          <h1 className="text-2xl font-bold">Pilih angkringan</h1>
+          <h1 className="text-2xl">Pilih angkringan</h1>
         </div>
         <button onClick={() => router.push('/owner/dashboard')} className="text-sm text-primary">← Pantau</button>
       </div>

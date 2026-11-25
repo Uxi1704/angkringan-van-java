@@ -132,7 +132,7 @@ export default function OwnerDashboard() {
         </div>
         <div>
           <p className="text-xs font-medium text-sogan">Pemilik</p>
-          <h1 className="text-xl font-bold leading-tight">Pantauan dua angkringan</h1>
+          <h1 className="text-2xl leading-tight">Pantauan dua angkringan</h1>
         </div>
       </div>
       <div className="mb-4 grid grid-cols-2 gap-2 text-sm">

@@ -32,25 +32,32 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-md">
-        <div className="mb-4 flex justify-center gap-4">
-          <img src="/logo-vanjava65.jpg" alt="VANJAVA65" className="h-20 w-20 rounded-full object-cover" />
-          <img src="/logo-arjuna85.jpg" alt="ARJUNA85" className="h-20 w-20 rounded-full object-cover" />
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="w-full max-w-sm rounded-3xl bg-white px-6 py-8">
+        <div className="mb-5 grid grid-cols-2 gap-3 text-center">
+          <div>
+            <img src="/logo-vanjava65.jpg" alt="VANJAVA65" className="mx-auto h-24 w-24 rounded-full object-cover shadow-md" />
+            <p className="mt-2 font-display text-sm font-semibold">VANJAVA65</p>
+            <p className="text-[11px] text-stone-500">Simpang Bangkal</p>
+          </div>
+          <div>
+            <img src="/logo-arjuna85.jpg" alt="ARJUNA85" className="mx-auto h-24 w-24 rounded-full object-cover shadow-md" />
+            <p className="mt-2 font-display text-sm font-semibold">ARJUNA85</p>
+            <p className="text-[11px] text-stone-500">Simpang Sebabi</p>
+          </div>
         </div>
-        <p className="text-center text-xs font-medium text-sogan">Simpang Bangkal · Simpang Sebabi</p>
-        <h1 className="mb-6 text-center text-xl font-bold">VANJAVA65 & ARJUNA85</h1>
-        <form onSubmit={handleLogin} className="space-y-4">
+        <h1 className="mb-5 text-center text-2xl">Masuk kasir</h1>
+        <form onSubmit={handleLogin} className="space-y-3">
           <div>
             <label className="mb-1 block text-sm font-medium">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border px-3 py-2" required />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 w-full px-3" required />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border px-3 py-2" required />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 w-full px-3" required />
           </div>
           {error ? <p className="text-sm text-sogan">{error}</p> : null}
-          <button type="submit" disabled={loading} className="w-full rounded-lg bg-primary py-2 font-medium text-white disabled:opacity-50">
+          <button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-primary font-semibold text-white disabled:opacity-50">
             {loading ? 'Masuk...' : 'Masuk'}
           </button>
         </form>
