@@ -259,30 +259,79 @@ export default function KasirDashboard() {
       {notice ? <p className="mb-3 rounded-lg bg-white px-3 py-2 text-sm text-primary">{notice}</p> : null}
       {error ? <p className="mb-3 rounded-lg bg-white px-3 py-2 text-sm text-sogan">{error}</p> : null}
 
-      <div className="mb-3 grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => setKind('makanan')} className={'h-12 rounded-xl font-semibold ' + (kind === 'makanan' ? 'bg-primary text-white' : 'bg-white')}>Makanan</button>
-        <button type="button" onClick={() => setKind('minuman')} className={'h-12 rounded-xl font-semibold ' + (kind === 'minuman' ? 'bg-primary text-white' : 'bg-white')}>Minuman</button>
+      <div className="mb-3 flex rounded-xl bg-white/80 p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setKind('makanan')}
+          className={'flex-1 rounded-lg py-2.5 text-sm font-semibold transition ' + (kind === 'makanan' ? 'bg-primary text-white shadow' : 'text-stone-600')}
+        >
+          Makanan
+        </button>
+        <button
+          type="button"
+          onClick={() => setKind('minuman')}
+          className={'flex-1 rounded-lg py-2.5 text-sm font-semibold transition ' + (kind === 'minuman' ? 'bg-primary text-white shadow' : 'text-stone-600')}
+        >
+          Minuman
+        </button>
       </div>
 
-      <ul className="space-y-2">
+      <ul className="space-y-1.5">
         {visibleMenus.map((menu) => {
           const qty = cart[menu.id] || 0
           const left = leftOf(menu.id)
           const unit = menuUnit(menu.unit)
+          const low = left > 0 && left <= 5
           return (
-            <li key={menu.id} className={'flex items-center gap-3 rounded-xl bg-white p-3 ' + (qty > 0 ? 'ring-2 ring-primary' : '')}>
+            <li
+              key={menu.id}
+              className={'flex items-center gap-2 rounded-xl bg-white/95 px-3 py-2.5 transition ' + (qty > 0 ? 'ring-2 ring-primary/70' : 'border border-ink/5')}
+            >
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">{menu.name}</p>
-                <p className="text-sm text-stone-600">{rupiah(menu.price)} / {unit}</p>
-                <p className={'text-xs ' + (left <= 5 ? 'text-sogan' : 'text-stone-500')}>{left <= 0 ? 'Habis' : `Sisa ${left} ${unit}`}</p>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate font-semibold leading-tight">{menu.name}</p>
+                  <p className="shrink-0 text-sm font-medium text-primary">{rupiah(menu.price)}</p>
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-stone-500">
+                  <span>/{unit}</span>
+                  {left <= 0 ? (
+                    <span className="rounded bg-sogan/10 px-1.5 py-0.5 text-sogan">Habis</span>
+                  ) : low ? (
+                    <span className="rounded bg-sogan/10 px-1.5 py-0.5 text-sogan">Sisa {left}</span>
+                  ) : (
+                    <span>Sisa {left}</span>
+                  )}
+                </div>
               </div>
-              <button type="button" disabled={qty === 0} onClick={() => setQty(menu.id, qty - 1)} className="h-11 w-11 rounded-lg border disabled:opacity-40">−</button>
-              <span className="w-6 text-center font-medium">{qty}</span>
-              <button type="button" disabled={left <= 0 || qty >= left} onClick={() => setQty(menu.id, qty + 1)} className="h-11 w-11 rounded-lg bg-primary text-white disabled:opacity-40">+</button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={qty === 0}
+                  onClick={() => setQty(menu.id, qty - 1)}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-ink/10 text-lg disabled:opacity-30"
+                >
+                  −
+                </button>
+                <span className="w-7 text-center text-base font-semibold tabular-nums">{qty}</span>
+                <button
+                  type="button"
+                  disabled={left <= 0 || qty >= left}
+                  onClick={() => setQty(menu.id, qty + 1)}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-lg text-white disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
             </li>
           )
         })}
-        {visibleMenus.length === 0 ? <li className="rounded-xl bg-white p-4 text-sm">{kind === 'minuman' ? 'Belum ada minuman. Owner bisa menambah di halaman Menu.' : 'Belum ada makanan. Owner bisa menambah di halaman Menu.'}</li> : null}
+        {visibleMenus.length === 0 ? (
+          <li className="rounded-xl bg-white/90 p-4 text-center text-sm text-stone-500">
+            {kind === 'minuman' ? 'Belum ada minuman.' : 'Belum ada makanan.'}
+            <br />
+            <span className="text-xs">Owner bisa menambah di halaman Menu.</span>
+          </li>
+        ) : null}
       </ul>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_30px_rgba(42,28,22,0.08)] backdrop-blur">
