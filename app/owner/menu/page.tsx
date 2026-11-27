@@ -198,15 +198,33 @@ export default function MenuPage() {
           ? `Yang tampil hanya menu ${brand.short}. Lapak lain tidak ikut.`
           : 'Tiap angkringan akan punya daftar sendiri setelah SQL dijalankan.'}
       </p>
-      {!splitReady ? <p className="mb-3 rounded-xl bg-white p-3 text-sm text-sogan">{splitMessage}</p> : null}
-      {error ? <p className="mb-3 text-sm text-sogan">{error}</p> : null}
-      <form onSubmit={handleSubmit} className="mb-4 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+      {!splitReady ? <p className="mb-3 rounded-xl bg-white/90 p-3 text-sm text-sogan">{splitMessage}</p> : null}
+      {error ? <p className="mb-3 rounded-lg bg-white/90 px-3 py-2 text-sm text-sogan">{error}</p> : null}
+
+      <div className="mb-3 flex rounded-xl bg-white/80 p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => pickKind('makanan')}
+          className={'flex-1 rounded-lg py-2.5 text-sm font-semibold transition ' + (kind === 'makanan' ? 'bg-primary text-white shadow' : 'text-stone-600')}
+        >
+          Makanan
+        </button>
+        <button
+          type="button"
+          onClick={() => pickKind('minuman')}
+          className={'flex-1 rounded-lg py-2.5 text-sm font-semibold transition ' + (kind === 'minuman' ? 'bg-primary text-white shadow' : 'text-stone-600')}
+        >
+          Minuman
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mb-4 space-y-3 rounded-2xl border border-ink/5 bg-white/95 p-4 shadow-sm">
         <h2 className="font-semibold">{editing ? `Edit menu ${brand.short}` : `Tambah menu ${brand.short}`}</h2>
-        <input type="text" placeholder="Nama menu" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border px-3 py-2" required />
-        <input type="number" placeholder="Harga" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full rounded border px-3 py-2" required />
+        <input type="text" placeholder="Nama menu" value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
+        <input type="number" placeholder="Harga" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full" required />
         <div>
           <p className="mb-2 text-sm">Satuan</p>
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="mb-2 flex flex-wrap gap-1.5">
             {unitIdeas.map((idea) => (
               <button
                 key={idea}
@@ -218,34 +236,32 @@ export default function MenuPage() {
               </button>
             ))}
           </div>
-          <input type="text" placeholder="Atau ketik satuan lain" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full rounded border px-3 py-2" required />
-        </div>
-        <div>
-          <p className="mb-2 text-sm">Jenis</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => pickKind('makanan')} className={'h-11 rounded-lg font-medium ' + (kind === 'makanan' ? 'bg-primary text-white' : 'bg-paper')}>Makanan</button>
-            <button type="button" onClick={() => pickKind('minuman')} className={'h-11 rounded-lg font-medium ' + (kind === 'minuman' ? 'bg-primary text-white' : 'bg-paper')}>Minuman</button>
-          </div>
+          <input type="text" placeholder="Atau ketik satuan lain" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full" required />
         </div>
         <div className="flex gap-2">
-          <button type="submit" className="rounded bg-primary px-4 py-2 text-white">{editing ? 'Update' : 'Tambah'}</button>
-          {editing ? <button type="button" onClick={resetForm} className="rounded border px-4 py-2">Batal</button> : null}
+          <button type="submit" className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white">{editing ? 'Update' : 'Tambah'}</button>
+          {editing ? <button type="button" onClick={resetForm} className="rounded-lg border px-4 py-2.5 text-sm">Batal</button> : null}
         </div>
       </form>
-      <div className="space-y-2">
+
+      <div className="space-y-1.5">
         {visible.map((menu) => (
-          <div key={menu.id} className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm">
-            <div>
-              <div className="font-medium">{menu.name}</div>
-              <div className="text-sm text-stone-600">{rupiah(menu.price)} · {menuUnit(menu.unit)} · {menuKind(menu.category) === 'minuman' ? 'Minuman' : 'Makanan'}</div>
+          <div key={menu.id} className="flex items-center justify-between gap-3 rounded-xl border border-ink/5 bg-white/95 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-semibold leading-tight">{menu.name}</div>
+              <div className="mt-0.5 text-xs text-stone-500">{rupiah(menu.price)} · /{menuUnit(menu.unit)}</div>
             </div>
-            <div className="flex gap-3 text-sm">
+            <div className="flex shrink-0 gap-2 text-sm">
               <button onClick={() => startEdit(menu)} className="text-primary">Edit</button>
               <button onClick={() => handleDelete(menu.id)} className="text-sogan">Hapus</button>
             </div>
           </div>
         ))}
-        {visible.length === 0 ? <p className="rounded-2xl bg-white py-4 text-center text-sm text-stone-500">Belum ada {kind} di {brand.short}</p> : null}
+        {visible.length === 0 ? (
+          <p className="rounded-xl bg-white/90 py-4 text-center text-sm text-stone-500">
+            Belum ada {kind} di {brand.short}
+          </p>
+        ) : null}
       </div>
       <button type="button" onClick={seedStall} className="mt-4 w-full rounded-xl bg-white px-3 py-3 text-sm font-medium text-primary shadow-sm">
         Isi menu awal {brand.short}

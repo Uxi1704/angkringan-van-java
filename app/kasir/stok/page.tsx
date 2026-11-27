@@ -108,33 +108,51 @@ export default function StokPage() {
       <StallSwitch locations={locations} value={locationId} onChange={(id) => { setLocationId(id); setDrafts({}) }} />
       <p className="mb-3 mt-3 text-sm text-stone-600">Ketik jumlah yang tersisa di lapak ini, lalu simpan.</p>
       {!splitReady ? <p className="mb-3 text-sm text-sogan">Menu masih tercampur. Jalankan supabase/006_menu_per_lapak.sql sekali.</p> : null}
-      <div className="mb-4 grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => setKind('makanan')} className={'h-11 rounded-xl font-semibold ' + (kind === 'makanan' ? 'bg-ink text-white' : 'bg-white')}>Makanan</button>
-        <button type="button" onClick={() => setKind('minuman')} className={'h-11 rounded-xl font-semibold ' + (kind === 'minuman' ? 'bg-ink text-white' : 'bg-white')}>Minuman</button>
+      <div className="mb-3 flex rounded-xl bg-white/80 p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setKind('makanan')}
+          className={'flex-1 rounded-lg py-2.5 text-sm font-semibold transition ' + (kind === 'makanan' ? 'bg-primary text-white shadow' : 'text-stone-600')}
+        >
+          Makanan
+        </button>
+        <button
+          type="button"
+          onClick={() => setKind('minuman')}
+          className={'flex-1 rounded-lg py-2.5 text-sm font-semibold transition ' + (kind === 'minuman' ? 'bg-primary text-white shadow' : 'text-stone-600')}
+        >
+          Minuman
+        </button>
       </div>
-      {notice ? <p className="mb-3 text-sm text-primary">{notice}</p> : null}
-      {error ? <p className="mb-3 text-sm text-sogan">{error}</p> : null}
-      <ul className="space-y-2">
+      {notice ? <p className="mb-3 rounded-lg bg-white/90 px-3 py-2 text-sm text-primary">{notice}</p> : null}
+      {error ? <p className="mb-3 rounded-lg bg-white/90 px-3 py-2 text-sm text-sogan">{error}</p> : null}
+      <ul className="space-y-1.5">
         {menus.filter((menu) => menuKind(menu.category) === kind && (!splitReady || menu.location_id === locationId)).map((menu) => {
           const qty = stocks.find((row) => row.menu_id === menu.id && row.location_id === locationId)?.quantity ?? 0
           const unit = menuUnit(menu.unit)
+          const low = qty > 0 && qty <= 5
           return (
-            <li key={menu.id} className="rounded-xl bg-white p-3">
-              <p className="font-semibold">{menu.name}</p>
+            <li key={menu.id} className="rounded-xl border border-ink/5 bg-white/95 px-3 py-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="truncate font-semibold leading-tight">{menu.name}</p>
+                <span className={'text-xs ' + (qty <= 0 ? 'text-sogan' : low ? 'text-sogan' : 'text-stone-500')}>
+                  {qty <= 0 ? 'Habis' : `Sisa ${qty}`}
+                </span>
+              </div>
               <div className="mt-2 flex items-center gap-2">
                 <input
                   inputMode="numeric"
                   value={drafts[menu.id] ?? String(qty)}
                   onChange={(e) => setDrafts((current) => ({ ...current, [menu.id]: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                   onKeyDown={(e) => { if (e.key === 'Enter') saveQty(menu.id, qty) }}
-                  className={'h-12 min-w-0 flex-1 rounded-lg border px-3 text-lg font-semibold ' + (qty <= 5 ? 'text-sogan' : '')}
+                  className={'h-11 min-w-0 flex-1 rounded-lg border px-3 text-lg font-semibold ' + (qty <= 5 ? 'text-sogan' : '')}
                 />
-                <span className="w-16 shrink-0 text-sm text-stone-600">{unit}</span>
+                <span className="w-14 shrink-0 text-sm text-stone-600">{unit}</span>
                 <button
                   type="button"
                   disabled={saving === menu.id}
                   onClick={() => saveQty(menu.id, qty)}
-                  className="h-12 shrink-0 rounded-lg bg-primary px-4 text-sm font-medium text-white disabled:opacity-50"
+                  className="h-11 shrink-0 rounded-lg bg-primary px-3 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {saving === menu.id ? '...' : 'Simpan'}
                 </button>
