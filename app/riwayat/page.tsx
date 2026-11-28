@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { dayKeyJakarta, formatWib, stallBrand } from '@/lib/shop'
+import { formatWib, stallBrand } from '@/lib/shop'
 import { Struk, type StrukData } from '@/app/components/Struk'
 
 type Item = { menu_name: string; quantity: number; price: number; subtotal: number }
@@ -72,51 +72,45 @@ export default function RiwayatPage() {
     setRole(profile.role || '')
 
     const { start, end } = dayRange(selected)
-    const baseSelect = 'id, total, status, created_at, ordered_at, customer_name, note, kasir_name, location_id, locations(name), order_items(menu_name, quantity, price, subtotal)'
 
-    // Prefer ordered_at, fall back to created_at
-    let query = supabase
+    // Load recent orders and filter by date on the client.
+    // This is safer for schema differences and avoids complex OR filters.
+    const withItems = 'id, total, status, created_at, ordered_at, customer_name, note, kasir_name, location_id, locations(name), order_items(menu_name, quantity, price, subtotal)'
+    let result: { data: any[] | null; error: any } = await supabase
       .from('orders')
-      .select(baseSelect)
-      .or(`and(ordered_at.gte.${start},ordered_at.lt.${end}),and(ordered_at.is.null,created_at.gte.${start},created_at.lt.${end})`)
+      .select(withItems)
       .neq('status', 'cancelled')
-      .order('ordered_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
-      .limit(200)
+      .limit(300)
 
-    let { data, error: queryError } = await query
-
-    if (queryError && /kasir_name|note/i.test(queryError.message)) {
+    if (result.error && /kasir_name|note/i.test(result.error.message)) {
       const slimmer = 'id, total, status, created_at, ordered_at, customer_name, location_id, locations(name), order_items(menu_name, quantity, price, subtotal)'
-      const second = await supabase
+      result = await supabase
         .from('orders')
         .select(slimmer)
-        .or(`and(ordered_at.gte.${start},ordered_at.lt.${end}),and(ordered_at.is.null,created_at.gte.${start},created_at.lt.${end})`)
         .neq('status', 'cancelled')
-        .order('ordered_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
-        .limit(200)
-      data = second.data
-      queryError = second.error
+        .limit(300)
     }
 
-    if (queryError && /order_items|relationship/i.test(queryError.message)) {
+    if (result.error && /order_items|relationship/i.test(result.error.message)) {
       const plain = 'id, total, status, created_at, ordered_at, customer_name, location_id, locations(name)'
-      const third = await supabase
+      result = await supabase
         .from('orders')
         .select(plain)
-        .or(`and(ordered_at.gte.${start},ordered_at.lt.${end}),and(ordered_at.is.null,created_at.gte.${start},created_at.lt.${end})`)
         .neq('status', 'cancelled')
-        .order('ordered_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
-        .limit(200)
-      data = third.data
-      queryError = third.error
+        .limit(300)
     }
 
-    if (queryError) setError(queryError.message)
+    if (result.error) {
+      setError(result.error.message)
+      setOrders([])
+      setLoading(false)
+      return
+    }
 
-    const rows = ((data || []) as any[]).map((row) => ({
+    const rows = ((result.data || []) as any[]).map((row) => ({
       ...row,
       note: row.note ?? null,
       kasir_name: row.kasir_name ?? null,
@@ -124,7 +118,18 @@ export default function RiwayatPage() {
       order_items: asItems(row.order_items),
     })) as Order[]
 
-    setOrders(rows)
+    const filtered = rows.filter((order) => {
+      const when = order.ordered_at || order.created_at
+      const key = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(when))
+      return key === selected
+    })
+
+    setOrders(filtered)
     setLoading(false)
   }, [router, supabase])
 
@@ -132,7 +137,7 @@ export default function RiwayatPage() {
     load(date)
   }, [date, load])
 
-  const totalToday = useMemo(() => orders.reduce((sum, o) => sum + o.total, 0), [orders])
+  const total = useMemo(() => orders.reduce((sum, o) => sum + o.total, 0), [orders])
 
   function openReceipt(order: Order) {
     const when = order.ordered_at || order.created_at
@@ -189,7 +194,7 @@ export default function RiwayatPage() {
         </button>
       </div>
 
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex items-end gap-3">
         <label className="flex-1 text-sm">
           <span className="mb-1 block text-stone-600">Pilih tanggal</span>
           <input
@@ -200,9 +205,9 @@ export default function RiwayatPage() {
             className="h-11 w-full"
           />
         </label>
-        <div className="pt-5 text-right text-sm">
+        <div className="text-right text-sm">
           <p className="text-xs text-stone-500">{orders.length} transaksi</p>
-          <p className="font-semibold text-primary">{totalToday.toLocaleString('id-ID')}</p>
+          <p className="font-semibold text-primary">Rp {total.toLocaleString('id-ID')}</p>
         </div>
       </div>
 
